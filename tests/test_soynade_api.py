@@ -62,27 +62,20 @@ def test_speech_goes_straight_to_english_in_one_call():
         assert field in request.content
 
 
-# --- translation: POST /translations, JSON, the shape is found
+# --- translation: POST /translations, JSON, no model field
 
-def test_translation_finds_the_request_shape_the_server_accepts_and_remembers_it():
+def test_translation_sends_soynades_documented_body():
     bodies = []
 
     def handler(request):
-        body = json.loads(request.content)
-        bodies.append(body)
-        if "source" in body:                                   # only this shape is accepted
-            return httpx.Response(200, json={"translation": " Naka nga def? "})
-        return httpx.Response(422, json={"detail": "field required"})
-    mt = SoynadeTranslator(make(handler))
-    assert mt.translate("How are you?", "en", "wo") == "Naka nga def?"
-    tried = len(bodies)
-    assert tried > 1 and bodies[-1] == {"model": "oolel-speech-v1", "text": "How are you?", "source": "en", "target": "wo"}
-    mt.translate("Thanks", "en", "wo")
-    assert len(bodies) == tried + 1                            # the accepted shape is used at once
+        bodies.append(json.loads(request.content))
+        return httpx.Response(200, json={"translation": " Naka nga def? "})
+    assert SoynadeTranslator(make(handler)).translate("How are you?", "en", "wo") == "Naka nga def?"
+    assert bodies == [{"source_language": "en", "target_language": "wo", "temperature": 0.1, "text": "How are you?"}]
 
 
-def test_when_no_shape_is_accepted_the_messages_are_shown():
-    with pytest.raises(SoynadeError, match="(?s)rejected every request shape.*field required"):
+def test_a_rejected_request_shows_soynades_detail():
+    with pytest.raises(SoynadeError, match="field required"):
         SoynadeTranslator(make(lambda r: httpx.Response(422, json={"detail": "field required"}))).translate("x", "en", "wo")
 
 
