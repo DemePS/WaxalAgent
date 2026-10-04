@@ -7,6 +7,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from . import audio
+from .agent import REPLY_LANGUAGE
 from .mt.base import Translator
 from .stt.base import Listener
 from .text import chunks, speakable
@@ -85,7 +86,7 @@ class Pipeline:
         if not spoken:
             result.notes.append("the agent gave no answer")
             return result
-        parts = [self.translator.translate(s, "en", "wo") for s in chunks(spoken)]
+        parts = [self.translator.translate(s, REPLY_LANGUAGE, "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
         log.info("[4] English -> Wolof: %s", result.reply_wolof)
         started = time.monotonic()

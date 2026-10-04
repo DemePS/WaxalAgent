@@ -36,7 +36,7 @@ def test_a_voice_note_is_understood_in_one_call_without_translating_the_incoming
     result = Pipeline(listener, translator, FakeSpeaker(), agent).from_audio("u", b"rec")
     assert agent.asked == [("u", "give me the total")] and listener.direct_calls == 1
     assert listener.heard == []                                        # no separate recognition call
-    assert all(call[1:] == ("en", "wo") for call in translator.calls)  # only the reply is translated (en -> wo)
+    assert all(call[1:] == ("fr", "wo") for call in translator.calls)  # only the reply is translated (fr -> wo)
     assert result.english == "give me the total" and result.wolof == "" and result.audio_wav
 
 

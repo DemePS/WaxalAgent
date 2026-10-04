@@ -5,6 +5,7 @@ under a lock: each turn opens the person's own folder, resumes their saved conve
 saves it again. Throughput is one turn at a time per process: run several processes for more.
 """
 
+import os
 import re
 import threading
 from pathlib import Path
@@ -13,21 +14,27 @@ from coding_agent import session
 
 from .voice_ui import VoiceUI
 
+# The language the agent answers in (and asks its questions in): it is the source language of the translation to Wolof.
+REPLY_LANGUAGE = os.environ.get("WAXAL_REPLY_LANGUAGE") or "fr"
+_LANGUAGE_NAMES = {"fr": "French", "en": "English"}
+REPLY_LANGUAGE_NAME = _LANGUAGE_NAMES.get(REPLY_LANGUAGE, REPLY_LANGUAGE)
+
 # Read-only: a public channel must not change or delete files, run programs or browse.
 TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "read_excel", "view_image", "ask_human"]
 
 SYSTEM_PROMPT = """You are a helpful assistant that talks with people through spoken voice notes. You work in the \
 folder {workspace} and can read the files in it.
 
-Your English reply is translated into Wolof by a machine and then spoken aloud. So:
+Write your whole answer in {language}, and the question you give to ask_human as well: your reply is translated into Wolof by a machine and then spoken aloud. So:
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
 - If you need a file you cannot find, say so and say what you would need.
 - You cannot change files or ask for approvals in this channel. Say clearly when something needs more than reading.
-- If you need to ask the person something, use ask_human with one very brief question (a few words), then end your turn: they answer by voice in their next message.
+- If you need to ask the person something, use ask_human with one very brief question (a few words, in {language}), then end your turn: they answer by voice in their next message.
 The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{language}", REPLY_LANGUAGE_NAME)  # ({workspace} is filled in by CodeAgent)
 
 
 def user_folder(root: Path, user_id: str) -> Path:
@@ -48,7 +55,7 @@ def spoken_reply(reply: str, questions: list[str]) -> str:
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
-CONCISE = "[instructions: be concise, keep your answer as short as possible, in short sentences]"
+CONCISE = f"[instructions: answer in {REPLY_LANGUAGE_NAME}, be concise, keep your answer as short as possible, in short sentences]"
 
 
 class AgentTurns:
