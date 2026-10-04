@@ -90,15 +90,13 @@ def _join_wavs(wavs: list[bytes]) -> bytes:
     """Concatenate WAV files of the same format (what one speaker produces) into one."""
     import io
     import wave
-    if len(wavs) == 1:
-        return wavs[0]
     out = io.BytesIO()
     writer = None
     for data in wavs:
         with wave.open(io.BytesIO(data)) as w:
             if writer is None:
                 writer = wave.open(out, "wb")
-                writer.setparams(w.getparams())
+                writer.setparams(w.getparams()._replace(nframes=0))  # a streamed WAV states a bogus length (0xFFFFFFFF)
             writer.writeframes(w.readframes(w.getnframes()))
     if writer is not None:
         writer.close()

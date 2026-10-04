@@ -81,3 +81,14 @@ def test_long_wolof_replies_are_spoken_in_pieces_of_at_most_450_characters():
     pipe.speaker = Voice()
     pipe._speak([" ".join(["Nanga def, mangi fi rekk."] * 60)], TurnResult())
     assert len(spoken) > 1 and all(len(p) <= SPEECH_LIMIT for p in spoken)
+
+
+def test_wavs_with_a_streaming_header_are_joined():
+    import io, struct, wave
+    from waxal_agent.pipeline import _join_wavs
+    pcm = b"\x01\x00" * 100
+    header = b"RIFF" + struct.pack("<L", 0xFFFFFFFF) + b"WAVEfmt " + struct.pack("<LHHLLHH", 16, 1, 1, 16000, 32000, 2, 16)
+    streamed = header + b"data" + struct.pack("<L", 0xFFFFFFFF) + pcm
+    for count in (1, 2):
+        with wave.open(io.BytesIO(_join_wavs([streamed] * count))) as w:
+            assert w.getnframes() == 100 * count and w.getframerate() == 16000
