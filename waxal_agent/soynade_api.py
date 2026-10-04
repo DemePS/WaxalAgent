@@ -24,6 +24,10 @@ RETRY_STATUS = (429, 500, 502, 503, 504)
 class SoynadeError(Exception):
     """The Soynade API did not give an answer (the message is meant to be read by the operator, not the end user)."""
 
+    def __init__(self, message: str, status: int | None = None) -> None:
+        super().__init__(message)
+        self.status = status
+
 
 class SoynadeClient:
     def __init__(self, api_key: str | None = None, base_url: str | None = None, http: httpx.Client | None = None,
@@ -37,23 +41,37 @@ class SoynadeClient:
 
     def chat(self, model: str, messages: list[dict], **options) -> dict:
         """POST /chat/completions; returns the response JSON. Retries rate limits and server errors."""
-        body = {"model": model, "messages": messages, **options}
+        return self._request("POST", "chat/completions", {"model": model, "messages": messages, **options}).json()
+
+    def models(self) -> list[str]:
+        """GET /models (the OpenAI-compatible list): the ids of the models your key can use."""
+        response = self._request("GET", "models")
+        try:
+            return sorted(str(m["id"]) for m in response.json()["data"])
+        except (KeyError, TypeError, ValueError):
+            raise SoynadeError(f"Unexpected answer from Soynade's model list: {response.text[:200]}")
+
+    def raw(self, path: str, body: dict) -> httpx.Response:
+        """POST any other route of the API (e.g. audio/speech); the answer is returned as is, errors raise."""
+        return self._request("POST", path, body)
+
+    def _request(self, method: str, path: str, body: dict | None = None) -> httpx.Response:
         last = ""
         for attempt in range(self.retries + 1):
             try:
-                response = self.http.post(f"{self.base_url}/chat/completions", json=body,
-                                          headers={"Authorization": f"Bearer {self.api_key}"})
+                response = self.http.request(method, f"{self.base_url}/{path}", json=body,
+                                             headers={"Authorization": f"Bearer {self.api_key}"})
             except httpx.TransportError as e:
                 last = f"network error: {type(e).__name__}: {e}"
             else:
                 if response.status_code == 200:
-                    return response.json()
+                    return response
                 last = f"HTTP {response.status_code}: {_detail(response)}"
                 if response.status_code not in RETRY_STATUS:
-                    break
+                    raise SoynadeError(f"Soynade API call failed ({path}): {last}", status=response.status_code)
             if attempt < self.retries:
                 time.sleep(self.backoff * (2 ** attempt))
-        raise SoynadeError(f"Soynade API call failed ({model}): {last}")
+        raise SoynadeError(f"Soynade API call failed ({path}): {last}")
 
     def text_of(self, completion: dict) -> str:
         try:

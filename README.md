@@ -41,14 +41,24 @@ in `SOYNADE_API_KEY`, created in their console). **No model is downloaded or run
 
 | Stage | Status |
 |---|---|
-| Wolof speech -> text | **wired**: `stt/soynade_api.py`, model `oolel-speech-v1` (from Soynade's quickstart) |
-| Wolof <-> English | not wired yet: waits for the translation page of Soynade's reference (model name, prompt) |
-| Wolof text -> speech | not wired yet: waits for their speech-output page (endpoint, voices, format) |
+| Wolof speech -> text | wired: `stt/soynade_api.py`, model `oolel-speech-v1` (from Soynade's quickstart) |
+| Wolof <-> English | wired as a **best reading**: `mt/soynade_api.py` asks a chat model "Translate to Wolof the following sentence" (their own pipeline's prompt). The model id is `SOYNADE_MT_MODEL`, else found in the model list |
+| Wolof text -> speech | wired as a **best reading**: `tts/soynade_api.py` tries `POST audio/speech`, then chat completions with audio output (OpenAI-style routes). Model `SOYNADE_TTS_MODEL` (else found in the list), voice `SOYNADE_TTS_VOICE` |
 
-Try recognition now: `uv run python scripts/check_api.py recording.wav`, or press and record in the browser:
-`SOYNADE_API_KEY=... uv run waxal-agent serve --engines soynade-asr`, open `http://127.0.0.1:8000/`, tick **Transcribe only**,
-hold the button and speak. Until translation and speech output are wired, a full turn (`--engines soynade`) is refused with
-a clear message, and `--engines fake` runs everything with stand-ins.
+The last two rows are not confirmed by any Soynade page I could read (their reference is blocked where this was written).
+Find out what works for your key, one step at a time:
+
+```bash
+export SOYNADE_API_KEY=...
+uv run python scripts/check_api.py models                      # the models your key can use: set SOYNADE_*_MODEL from this
+uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> text
+uv run python scripts/check_api.py translate en wo "Hello"     # then: translate wo en "..."
+uv run python scripts/check_api.py speak "Nanga def"           # writes speech.wav: play it
+uv run waxal-agent serve --engines soynade                     # the whole turn through the API, on the test page
+```
+
+If a step fails, the message shows Soynade's own error: send it to me, together with the model list, and I will adjust.
+`--engines soynade-asr` uses only their recognition (the rest are stand-ins).
 
 Everything people say, and every reply, goes to Soynade when you use the API: say so in your terms, and read their terms
 and prices (each turn is several API calls).
