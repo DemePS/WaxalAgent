@@ -36,32 +36,31 @@ real models and a WhatsApp test with Meta's free test number and a temporary pub
 
 ## Soynade's hosted API (nothing is hosted here)
 
-All speech and translation go through Soynade's hosted, OpenAI-compatible API (`https://api.soynade.ai/openai/v1`, your key
-in `SOYNADE_API_KEY`, created in their console). **No model is downloaded or run by this project.**
+All speech and translation go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
+created in their console), called directly over HTTPS: no chat client, no model downloaded or run here.
 
-| Stage | Status |
-|---|---|
-| Wolof speech -> text | wired: `stt/soynade_api.py`, model `oolel-speech-v1` (from Soynade's quickstart) |
-| Wolof <-> English | wired and **tested live** ("How are you?" -> "Naka nga def?"): `mt/soynade_api.py` asks a chat model "Translate to Wolof the following sentence" (their own pipeline's prompt). The model id is `SOYNADE_MT_MODEL`, else found in the model list |
-| Wolof text -> speech | **not available from Soynade yet**: their API answers "Only text output is supported during launch". `tts/soynade_api.py` is ready (chat route with audio output, then `audio/speech`) and a reply stays **text only** (voice note skipped, text message sent) until Soynade turns audio output on; it asks again every ten minutes. `SOYNADE_TTS=off` stops asking. **Oolel-Voices now:** `WAXAL_TTS=oolel-demo` (`uv sync --extra demo`) calls Soynade's public Oolel-Voices demo (a Hugging Face Space) like an API: unofficial, shared, may queue, change or vanish; a stop-gap until their API serves audio. **Another voice:** `WAXAL_TTS=huggingface` (+ `HF_TOKEN`) speaks Wolof with Meta's MMS model `facebook/mms-tts-wol` through Hugging Face's hosted inference (nothing runs locally; unverified here; the model licence is CC-BY-NC: non-commercial) |
+| Stage | Route and model | Status |
+|---|---|---|
+| Wolof speech -> text | `POST /v1/audio/transcriptions`, `oolel-speech-v1` | multipart upload (file, model); worked live through an earlier route |
+| Wolof <-> English | `POST /v1/translations`, `oolel-speech-v1` | JSON; the field names are not in what I could read, so a few likely shapes are tried until one is accepted |
+| Wolof text -> speech | `POST /v1/text-to-speech`, `oolel-voices`, default voice | JSON `{model, input}` (then `{model, text}`); audio bytes or JSON with base64 / url |
 
-The last two rows are not confirmed by any Soynade page I could read (their reference is blocked where this was written).
-Find out what works for your key, one step at a time:
+The request fields come from no page I could read, so a rejected shape shows **Soynade's own error message**: send it to me
+(or the field list from their reference) and I correct it. Try one step at a time:
 
 ```bash
 export SOYNADE_API_KEY=...
-uv run python scripts/check_api.py models                      # the models your key can use: set SOYNADE_*_MODEL from this
 uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> text
 uv run python scripts/check_api.py translate en wo "Hello"     # then: translate wo en "..."
-uv run python scripts/check_api.py speak "Nanga def"           # writes speech.wav: play it
-uv run waxal-agent serve --engines soynade                     # the whole turn through the API, on the test page
+uv run python scripts/check_api.py speak "Naka nga def?"       # writes speech.wav: play it
+uv run waxal-agent serve --engines soynade                     # the whole turn, on the test page
 ```
 
-If a step fails, the message shows Soynade's own error: send it to me, together with the model list, and I will adjust.
-`--engines soynade-asr` uses only their recognition (the rest are stand-ins).
-
-Everything people say, and every reply, goes to Soynade when you use the API: say so in your terms, and read their terms
-and prices (each turn is several API calls).
+If audio output is not offered for your key ("Only text output is supported during launch"), a reply stays text only and the
+API is not asked again for ten minutes (`SOYNADE_TTS=off` stops asking). Rate limits (HTTP 429) are waited out as the server
+says; each turn is about four calls. Everything people say, and every reply, goes to Soynade: say so in your terms.
+`--engines soynade-asr` uses only their recognition (the rest are stand-ins). Other voices: `WAXAL_TTS=huggingface`
+(`HF_TOKEN`, MMS Wolof, non-commercial licence) or `WAXAL_TTS=oolel-demo` (Soynade's public demo Space, `uv sync --extra demo`).
 
 ## WhatsApp
 

@@ -1,12 +1,14 @@
-"""Wolof speech recognition through Soynade's hosted speech model (no model to host)."""
+"""Wolof speech recognition: POST /v1/audio/transcriptions on Soynade's API (model oolel-speech-v1).
 
-import base64
+Sent as a multipart upload, the way a transcription route is usually shaped: file = the WAV, model = the model; with
+SOYNADE_ASR_LANGUAGE (e.g. wo) a `language` field too. The answer's `text` is the transcription.
+"""
+
 import os
 
-from ..soynade_api import SoynadeClient
+from ..soynade_api import SoynadeClient, text_in
 
 DEFAULT_MODEL = "oolel-speech-v1"
-PROMPT = "Transcribe this audio. Reply with the transcription only."
 
 
 class SoynadeListener:
@@ -15,11 +17,8 @@ class SoynadeListener:
         self.model = model or os.environ.get("SOYNADE_ASR_MODEL") or DEFAULT_MODEL
 
     def transcribe(self, wav: bytes) -> str:
-        audio = base64.b64encode(wav).decode("ascii")
-        completion = self.client.chat(
-            self.model,
-            [{"role": "user", "content": [
-                {"type": "input_audio", "input_audio": {"data": audio, "format": "wav"}},
-                {"type": "text", "text": PROMPT}]}],
-            modalities=["text"], temperature=0, max_tokens=512)
-        return self.client.text_of(completion)
+        data = {"model": self.model}
+        if os.environ.get("SOYNADE_ASR_LANGUAGE"):
+            data["language"] = os.environ["SOYNADE_ASR_LANGUAGE"]
+        response = self.client.post_file("audio/transcriptions", {"file": ("audio.wav", wav, "audio/wav")}, data)
+        return text_in(response, ("text", "transcription", "transcript"))

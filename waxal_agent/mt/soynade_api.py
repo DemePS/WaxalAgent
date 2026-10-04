@@ -1,37 +1,50 @@
-"""Wolof <-> English translation through Soynade's hosted API (a chat model asked to translate).
+"""Wolof <-> English translation: POST /v1/translations on Soynade's API (model oolel-speech-v1).
 
-The system prompt "Translate to Wolof the following sentence" is the one Soynade's own translation pipeline uses; the
-opposite direction is its mirror (unverified: SOYNADE_MT_PROMPT_WO_EN / SOYNADE_MT_PROMPT_EN_WO change them).
-The model is SOYNADE_MT_MODEL, else the one found in the model list (see `scripts/check_api.py models`); when the key lists a
-single model (oolel-speech-v1) that one is used: it is a chat model, so it is asked with text only.
+The documentation lists the route, not its fields, so the JSON body is tried in the shapes such a route most likely has,
+until the server accepts one (HTTP 400 / 422 means "not this shape"); the first accepted shape is remembered:
+
+    {"model", "input", "source_language", "target_language"}      language codes "wo" / "en"
+    {"model", "text", "source_language", "target_language"}
+    {"model", "input", "source", "target"}
+    {"model", "text", "source", "target"}
+    {"model", "input", "target_language"}
+
+When none is accepted the error shows what Soynade said for each: send it to me and the shape is corrected.
+The answer's text is read from translation / translated_text / text / output (or a plain-text body).
 """
 
 import os
 
-from ..soynade_api import SoynadeClient
-from ..soynade_models import pick
+from ..soynade_api import SoynadeClient, SoynadeError, text_in
 
-PROMPTS = {"en-wo": "Translate to Wolof the following sentence", "wo-en": "Translate to English the following sentence"}
+DEFAULT_MODEL = "oolel-speech-v1"
+SHAPES = (("input", "source_language", "target_language"), ("text", "source_language", "target_language"),
+          ("input", "source", "target"), ("text", "source", "target"), ("input", None, "target_language"))
 
 
 class SoynadeTranslator:
     def __init__(self, client: SoynadeClient | None = None, model: str | None = None) -> None:
         self.client = client or SoynadeClient()
-        self._model = model or os.environ.get("SOYNADE_MT_MODEL")
-        self.prompts = {"en-wo": os.environ.get("SOYNADE_MT_PROMPT_EN_WO") or PROMPTS["en-wo"],
-                        "wo-en": os.environ.get("SOYNADE_MT_PROMPT_WO_EN") or PROMPTS["wo-en"]}
-
-    @property
-    def model(self) -> str:
-        if self._model is None:
-            self._model = pick(self.client, "translation", "SOYNADE_MT_MODEL")
-        return self._model
+        self.model = model or os.environ.get("SOYNADE_MT_MODEL") or DEFAULT_MODEL
+        self._shape = None
 
     def translate(self, text: str, source: str, target: str) -> str:
         if source == target or not text.strip():
             return text
-        completion = self.client.chat(
-            self.model,
-            [{"role": "system", "content": self.prompts[f"{source}-{target}"]}, {"role": "user", "content": text}],
-            temperature=0, max_tokens=512)
-        return self.client.text_of(completion)
+        shapes = [self._shape] if self._shape else SHAPES
+        errors = []
+        for shape in shapes:
+            text_key, source_key, target_key = shape
+            body = {"model": self.model, text_key: text, target_key: target}
+            if source_key:
+                body[source_key] = source
+            try:
+                response = self.client.post_json("translations", body)
+            except SoynadeError as e:
+                if e.status in (400, 422) and not self._shape:
+                    errors.append(f"{sorted(body)}: {e}")
+                    continue
+                raise
+            self._shape = shape
+            return text_in(response, ("translation", "translated_text", "text", "output"))
+        raise SoynadeError("Soynade's /translations rejected every request shape I know:\n  " + "\n  ".join(errors))

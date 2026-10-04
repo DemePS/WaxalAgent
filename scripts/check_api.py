@@ -1,6 +1,5 @@
 """Try Soynade's hosted API one step at a time (needs SOYNADE_API_KEY).
 
-    uv run python scripts/check_api.py models                      # which models your key can use
     uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
     uv run python scripts/check_api.py translate en wo "Hello"     # text translation (en wo / wo en)
     uv run python scripts/check_api.py speak "Nanga def"           # Wolof text -> speech.wav (WAXAL_TTS=huggingface: HF_TOKEN)
@@ -28,16 +27,14 @@ def main(argv: list[str]) -> None:
     certs.trust_system_certificates()  # a company proxy re-signs HTTPS
     client = SoynadeClient()
     command, args = argv[0], argv[1:]
-    if command == "models":
-        print("\n".join(client.models()))
-    elif command == "listen" and args:
+    if command == "listen" and args:
         from waxal_agent.stt.soynade_api import SoynadeListener
         wav = audio.to_wav(Path(args[0]).read_bytes())
         print("heard:", repr(timed(lambda: SoynadeListener(client).transcribe(wav))))
     elif command == "translate" and len(args) == 3:
         from waxal_agent.mt.soynade_api import SoynadeTranslator
         mt = SoynadeTranslator(client)
-        print(f"model {mt.model}:", repr(timed(lambda: mt.translate(args[2], args[0], args[1]))))
+        print(f"{mt.model}:", repr(timed(lambda: mt.translate(args[2], args[0], args[1]))))
     elif command == "speak" and args:
         from waxal_agent.engines import build_speaker
         speaker = build_speaker(client)                      # WAXAL_TTS=soynade (default) or huggingface

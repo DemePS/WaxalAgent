@@ -1,41 +1,36 @@
-"""Wolof speech through Soynade's hosted API.
+"""Wolof speech: POST /v1/text-to-speech on Soynade's API (model oolel-voices, its default voice).
 
-Two routes, both from the OpenAI-compatible API family their base URL belongs to (neither is confirmed by Soynade's pages
-that I could read: `scripts/check_api.py speak "..."` shows what actually works for your key):
-  chat:   POST {base}/chat/completions with modalities ["text","audio"] and audio {voice, format} -> message.audio.data
-  speech: POST {base}/audio/speech {model, input, voice, response_format}                      -> audio bytes
-When the model is a speech chat model (its id contains "speech", like oolel-speech-v1, the only model some keys list),
-chat is tried first; otherwise speech first. Settings: SOYNADE_TTS_MODEL (else the model list), SOYNADE_TTS_VOICE (default
-"default"), SOYNADE_TTS_ROUTE ("speech" or "chat" to force one; the other is tried when a route does not exist (404/405)).
-The result is always converted to 16 kHz mono WAV (ffmpeg), whatever Soynade returns.
+The documentation lists the route and the model, not the fields: the JSON sent is {"model": "oolel-voices", "input": text}
+(plus "voice" when SOYNADE_TTS_VOICE is set); when the server rejects it (HTTP 400 / 422) {"model", "text"} is tried, and
+both messages are shown if neither works. The answer is audio bytes, or JSON holding the audio (base64 under audio /
+audio_base64 / data, or a url to download). Everything is converted to 16 kHz mono WAV (ffmpeg).
+While Soynade says audio output is not offered ("Only text output is supported during launch") or switched off
+(SOYNADE_TTS=off), a reply stays text only and the API is not asked again for ten minutes.
 """
 
 import base64
 import os
 import time
 
+import httpx
+
 from .. import audio
 from ..soynade_api import SoynadeClient, SoynadeError
-from ..soynade_models import pick
 from .base import SpeechUnavailable
 
-RETRY_AFTER_SECONDS = 600  # once Soynade says speech output is not available, do not ask again for ten minutes
+DEFAULT_MODEL = "oolel-voices"
+RETRY_AFTER_SECONDS = 600
+AUDIO_MAGIC = (b"RIFF", b"ID3", b"OggS", b"fLaC", b"FORM")
 
 
 class SoynadeSpeaker:
     def __init__(self, client: SoynadeClient | None = None, model: str | None = None, voice: str | None = None) -> None:
         self.client = client or SoynadeClient()
-        self._model = model or os.environ.get("SOYNADE_TTS_MODEL")
-        self.voice = voice or os.environ.get("SOYNADE_TTS_VOICE") or "default"
-        self.route = (os.environ.get("SOYNADE_TTS_ROUTE") or "").lower()
+        self.model = model or os.environ.get("SOYNADE_TTS_MODEL") or DEFAULT_MODEL
+        self.voice = voice or os.environ.get("SOYNADE_TTS_VOICE") or None
+        self._key = None
         self._unavailable_until = 0.0
         self._reason = ""
-
-    @property
-    def model(self) -> str:
-        if self._model is None:
-            self._model = pick(self.client, "speech output", "SOYNADE_TTS_MODEL")
-        return self._model
 
     def speak(self, text: str) -> bytes:
         if (os.environ.get("SOYNADE_TTS") or "").lower() in ("off", "0", "false", "no"):
@@ -43,38 +38,52 @@ class SoynadeSpeaker:
         if time.monotonic() < self._unavailable_until:
             raise SpeechUnavailable(self._reason)
         try:
-            return self._speak(text)
+            return audio.to_wav(self._audio(text))
         except SoynadeError as e:
-            if "only text output" in str(e).lower():  # what Soynade answers during its launch: voice is not offered yet
-                self._reason = "Soynade's API does not offer speech output yet (\"Only text output is supported during launch\")."
+            lowered = str(e).lower()
+            if "only text output" in lowered or e.status in (404, 501):
+                self._reason = f"Soynade's API does not offer speech output for this key yet ({str(e)[:160]})."
                 self._unavailable_until = time.monotonic() + RETRY_AFTER_SECONDS
                 raise SpeechUnavailable(self._reason) from e
             raise
 
-    def _speak(self, text: str) -> bytes:
-        if self.route in ("speech", "chat"):
-            routes = [self.route]
-        else:
-            routes = ["chat", "speech"] if "speech" in self.model.lower() else ["speech", "chat"]
-        for index, route in enumerate(routes):
+    def _audio(self, text: str) -> bytes:
+        keys = [self._key] if self._key else ["input", "text"]
+        errors = []
+        for key in keys:
+            body = {"model": self.model, key: text}
+            if self.voice:
+                body["voice"] = self.voice
             try:
-                raw = self._speech(text) if route == "speech" else self._chat(text)
+                response = self.client.post_json("text-to-speech", body)
             except SoynadeError as e:
-                if index + 1 < len(routes) and e.status in (404, 405):  # this route does not exist: try the next
+                if e.status in (400, 422) and "only text output" not in str(e).lower() and not self._key:
+                    errors.append(f"{sorted(body)}: {e}")
                     continue
                 raise
-            return audio.to_wav(raw)
-        raise SoynadeError("Soynade has no speech-output route that works with this key.")
+            self._key = key
+            return audio_from(response, self.client.http)
+        raise SoynadeError("Soynade's /text-to-speech rejected both request shapes:\n  " + "\n  ".join(errors), status=422)
 
-    def _speech(self, text: str) -> bytes:
-        response = self.client.raw("audio/speech", {"model": self.model, "input": text, "voice": self.voice,
-                                                    "response_format": "wav"})
+
+def audio_from(response: httpx.Response, http: httpx.Client) -> bytes:
+    """The audio of a text-to-speech answer: the body itself, or JSON holding it (base64, or a url to download)."""
+    if response.headers.get("content-type", "").startswith("audio/") or response.content[:4] in AUDIO_MAGIC:
         return response.content
-
-    def _chat(self, text: str) -> bytes:
-        completion = self.client.chat(self.model, [{"role": "user", "content": text}], modalities=["text", "audio"],
-                                      audio={"voice": self.voice, "format": "wav"})
-        try:
-            return base64.b64decode(completion["choices"][0]["message"]["audio"]["data"])
-        except (KeyError, IndexError, TypeError, ValueError):
-            raise SoynadeError(f"Soynade's answer has no audio: {str(completion)[:200]}")
+    try:
+        data = response.json()
+    except ValueError:
+        raise SoynadeError(f"Soynade's text-to-speech answer is not audio: {response.text[:200]}")
+    for key in ("audio", "audio_base64", "data", "b64_json"):
+        value = data.get(key) if isinstance(data, dict) else None
+        if isinstance(value, str) and value:
+            try:
+                return base64.b64decode(value)
+            except ValueError:
+                pass
+    url = (data.get("url") or data.get("audio_url")) if isinstance(data, dict) else None
+    if isinstance(url, str):
+        download = http.get(url)
+        download.raise_for_status()
+        return download.content
+    raise SoynadeError(f"Soynade's text-to-speech answer holds no audio I recognise: {str(data)[:200]}")
