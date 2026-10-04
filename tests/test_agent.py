@@ -3,7 +3,7 @@
 from coding_agent import session, state
 
 from waxal_agent import agent as module
-from waxal_agent.agent import AgentTurns, TOOLS, user_folder
+from waxal_agent.agent import CONCISE, AgentTurns, TOOLS, user_folder
 
 
 def fake_send(reply):
@@ -24,7 +24,7 @@ def test_a_turn_uses_the_persons_folder_the_read_only_tools_and_returns_the_last
     monkeypatch.setattr(session, "send", fake_send("The total is 642."))
     turns = AgentTurns(tmp_path / "users")
     reply, notes = turns.ask("+221 77 123", "what is the total?")
-    assert reply == "The total is 642. (asked: what is the total?)" and notes == []
+    assert reply == f"The total is 642. (asked: what is the total?\n\n{CONCISE})" and notes == []
     assert state.tool_names == set(TOOLS) and "write_file" not in state.tool_names and "run_python" not in state.tool_names
     assert state.workspace == (tmp_path / "users" / "_221_77_123").resolve()
     assert state.system_prompt and "voice notes" in state.system_prompt

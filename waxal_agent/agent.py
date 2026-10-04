@@ -47,6 +47,10 @@ def spoken_reply(reply: str, questions: list[str]) -> str:
     return "\n".join(parts)
 
 
+# Added to every spoken request: the reply is translated and spoken, so shorter is better.
+CONCISE = "[instructions: be concise, keep your answer as short as possible]"
+
+
 class AgentTurns:
     """Run one instruction for one person and return the written reply."""
 
@@ -63,7 +67,7 @@ class AgentTurns:
         with self._lock:
             session.open_project(folder, ui=ui, tools=self.tools, system_prompt=SYSTEM_PROMPT, resume=True)
             try:
-                session.send(english)
+                session.send(f"{english}\n\n{CONCISE}")
             except Exception as e:  # e.g. no Claude access configured at all
                 from coding_agent.errors import describe
                 failure = describe(e) or f"{type(e).__name__}: {e}"
