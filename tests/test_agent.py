@@ -104,3 +104,9 @@ def test_with_wolof_as_the_reply_language_ask_human_speaks_the_question_itself(m
     ui = voice_ui.VoiceUI()
     ui.panel("Ban fichier?", tone="question")
     assert "finish your turn" in ui.ask_text("Your answer: ") and ui.spoken == ["Ban fichier?"]
+
+
+def test_the_agent_is_told_to_answer_only_from_its_workspace_files():
+    from waxal_agent.agent import CONCISE, SYSTEM_PROMPT
+    assert "only from information you found in the files of your workspace" in SYSTEM_PROMPT and "Never use outside knowledge" in SYSTEM_PROMPT
+    assert "answer only from what you found in your workspace files" in CONCISE
