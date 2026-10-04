@@ -81,7 +81,7 @@ class SoynadeClient:
                     return response
                 last = f"HTTP {response.status_code}: {_detail(response)}"
                 if response.status_code not in RETRY_STATUS:
-                    raise SoynadeError(f"Soynade API call failed ({path}): {last}", status=response.status_code)
+                    raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
                 wait = _retry_after(response)
             if attempt < self.retries:
                 time.sleep(min(max(wait, self.backoff * (2 ** attempt)), 30))
@@ -89,7 +89,7 @@ class SoynadeClient:
         limited = last.startswith("HTTP 429")
         hint = (" The rate limit of your Soynade plan is reached: wait a minute, or check the limits in Soynade's console."
                 if limited else "")
-        raise SoynadeError(f"Soynade API call failed ({path}): {last}.{hint}", status=429 if limited else None)
+        raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}.{hint}", status=429 if limited else None)
 
 
 def text_in(response: httpx.Response, keys: tuple[str, ...]) -> str:
