@@ -3,7 +3,7 @@
     uv run python scripts/check_api.py models                      # which models your key can use
     uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
     uv run python scripts/check_api.py translate en wo "Hello"     # text translation (en wo / wo en)
-    uv run python scripts/check_api.py speak "Nanga def"           # Wolof text -> speech.wav
+    uv run python scripts/check_api.py speak "Nanga def"           # Wolof text -> speech.wav (WAXAL_TTS=huggingface: HF_TOKEN)
 """
 
 import sys
@@ -39,11 +39,11 @@ def main(argv: list[str]) -> None:
         mt = SoynadeTranslator(client)
         print(f"model {mt.model}:", repr(timed(lambda: mt.translate(args[2], args[0], args[1]))))
     elif command == "speak" and args:
-        from waxal_agent.tts.soynade_api import SoynadeSpeaker
-        speaker = SoynadeSpeaker(client)
+        from waxal_agent.engines import build_speaker
+        speaker = build_speaker(client)                      # WAXAL_TTS=soynade (default) or huggingface
         wav = timed(lambda: speaker.speak(" ".join(args)))
         Path("speech.wav").write_bytes(wav)
-        print(f"model {speaker.model}: {len(wav)} bytes -> speech.wav (play it)")
+        print(f"{type(speaker).__name__} {speaker.model}: {len(wav)} bytes -> speech.wav (play it)")
     else:
         sys.exit(__doc__)
 

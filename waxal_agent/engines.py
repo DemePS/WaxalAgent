@@ -7,6 +7,20 @@ from .tts.base import Speaker
 NAMES = ("fake", "soynade-asr", "soynade")
 
 
+def build_speaker(soynade_client=None) -> Speaker:
+    """WAXAL_TTS picks the voice: soynade (default: not offered by their API yet) or huggingface (MMS Wolof, HF_TOKEN)."""
+    import os
+    choice = (os.environ.get("WAXAL_TTS") or "soynade").lower()
+    if choice == "huggingface":
+        from .tts.huggingface_api import HuggingFaceSpeaker
+        return HuggingFaceSpeaker()
+    if choice == "soynade":
+        from .soynade_api import SoynadeClient
+        from .tts.soynade_api import SoynadeSpeaker
+        return SoynadeSpeaker(soynade_client or SoynadeClient())
+    raise SystemExit(f"Unknown WAXAL_TTS {choice!r}: use soynade or huggingface.")
+
+
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
     """fake: stand-ins for everything (no key needed).
     soynade-asr: Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins.
@@ -28,5 +42,5 @@ def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
         from .stt.soynade_api import SoynadeListener
         from .tts.soynade_api import SoynadeSpeaker
         client = SoynadeClient()
-        return SoynadeListener(client), SoynadeTranslator(client), SoynadeSpeaker(client)
+        return SoynadeListener(client), SoynadeTranslator(client), build_speaker(client)
     raise SystemExit(f"Unknown engines {name!r}: use one of {', '.join(NAMES)}.")
