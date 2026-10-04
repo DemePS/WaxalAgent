@@ -29,6 +29,14 @@ back) can be checked before the real models exist. ffmpeg must be installed (it 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
 
+## ElevenLabs (recognition and voice)
+
+Instead of Soynade (for example when its credits are used up): `ELEVENLABS_API_KEY`, then `WAXAL_STT=elevenlabs` (Wolof speech to
+Wolof text, translated to English by Claude) and/or `WAXAL_TTS=elevenlabs` (the Wolof voice, model `eleven_v4`, voice
+`ELEVENLABS_VOICE_ID`). Try each on its own first: `uv run python scripts/check_api.py eleven-speak "Nanga def"` and
+`eleven-listen recording.wav`. If ElevenLabs rejects a language field, the error says so: set `ELEVENLABS_TTS_LANGUAGE` or
+`ELEVENLABS_STT_LANGUAGE` (an empty value leaves the field out).
+
 ## Live sandbox (Docker + your own WhatsApp)
 
 `docker compose up --build` runs the server in a container (test page on localhost), and `docs/SANDBOX.md` walks through the
