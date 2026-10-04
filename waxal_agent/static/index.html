@@ -1,0 +1,83 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>WaxalAgent</title>
+<style>
+  :root { --bg:#fafaf7; --fg:#1c1c1a; --muted:#6b6b66; --line:#dcdcd4; --card:#fff; --accent:#0a7d5a; --danger:#b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#ecece6; --muted:#9a9a92; --line:#33332f; --card:#1f1f1c; --accent:#3ec79a; --danger:#f2b8b5; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.3rem; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 20px; }
+  #talk { width:100%; padding:22px; font-size:1.1rem; border-radius:14px; border:1px solid var(--line); background:var(--card);
+          color:var(--fg); cursor:pointer; touch-action:none; user-select:none; }
+  #talk.rec { background:var(--danger); color:#fff; border-color:var(--danger); }
+  #talk:disabled { opacity:.6; cursor:default; }
+  form { display:flex; gap:8px; margin:12px 0 20px; }
+  input[type=text] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; }
+  button.small { padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; }
+  .turn { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:12px 0; }
+  .label { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:8px; }
+  .label:first-child { margin-top:0; } .turn p { margin:2px 0 0; white-space:pre-wrap; }
+  .note { color:var(--danger); font-size:.9rem; } audio { width:100%; margin-top:10px; } #status { color:var(--muted); min-height:1.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>WaxalAgent</h1>
+  <p class="sub">Hold the button and speak Wolof. You see what was heard, what the agent understood in English, and its answer.</p>
+  <button id="talk" type="button">Hold to talk</button>
+  <form id="typed"><input type="text" id="line" placeholder="or type Wolof here" autocomplete="off"><button class="small">Send</button></form>
+  <div id="status" role="status"></div>
+  <div id="turns"></div>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get('token') || '';
+const headers = (extra = {}) => ({ ...(token ? { 'x-token': token } : {}), ...extra });
+const talk = document.getElementById('talk'), statusEl = document.getElementById('status'), turns = document.getElementById('turns');
+let recorder = null, chunks = [], stream = null;
+
+function show(r) {
+  const div = document.createElement('div'); div.className = 'turn';
+  const add = (label, text, cls) => { if (!text) return;
+    const l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    const p = document.createElement('p'); p.textContent = text; if (cls) p.className = cls; div.append(l, p); };
+  add('Heard (Wolof)', r.wolof); add('Understood (English)', r.english);
+  add('Answer (English)', r.reply_english); add('Answer (Wolof)', r.reply_wolof);
+  (r.notes || []).forEach(n => add('Note', n, 'note'));
+  if (r.audio) { const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`; div.append(a); a.play().catch(() => {}); }
+  turns.prepend(div);
+}
+
+async function send(path, body, type) {
+  talk.disabled = true; statusEl.textContent = 'Working…';
+  try {
+    const res = await fetch(path, { method: 'POST', headers: headers({ 'content-type': type }), body });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
+    show(data); statusEl.textContent = '';
+  } catch (e) { statusEl.textContent = e.message; } finally { talk.disabled = false; }
+}
+
+async function start() {
+  if (recorder) return;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { statusEl.textContent = 'The microphone is not available (allow it, and use https or localhost).'; return; }
+  chunks = []; recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: recorder.mimeType }); recorder = null;
+    if (blob.size > 1000) send('/api/turn', blob, blob.type || 'application/octet-stream'); else statusEl.textContent = 'Too short: hold the button while you speak.'; };
+  recorder.start(); talk.classList.add('rec'); talk.textContent = 'Listening… release to send'; statusEl.textContent = '';
+}
+function stop() { if (recorder && recorder.state === 'recording') recorder.stop(); talk.classList.remove('rec'); talk.textContent = 'Hold to talk'; }
+
+talk.addEventListener('pointerdown', e => { e.preventDefault(); start(); });
+['pointerup', 'pointerleave', 'pointercancel'].forEach(t => talk.addEventListener(t, stop));
+document.getElementById('typed').addEventListener('submit', e => { e.preventDefault();
+  const line = document.getElementById('line'); const text = line.value.trim(); if (!text) return; line.value = '';
+  send('/api/text', JSON.stringify({ text }), 'application/json'); });
+</script>
+</body>
+</html>
