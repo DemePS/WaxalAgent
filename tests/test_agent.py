@@ -81,3 +81,26 @@ def test_a_question_replaces_the_rest_of_the_reply():
     from waxal_agent.agent import spoken_reply
     assert spoken_reply("Let me check. Which one?", ["Which one?"]) == "Which one?"
     assert spoken_reply("", ["Which one?"]) == "Which one?" and spoken_reply("Done.", []) == "Done."
+
+
+def test_speak_wolof_is_a_tool_and_what_it_gets_is_what_is_spoken():
+    from coding_agent import schemas, state
+    from coding_agent.tools import TOOL_HANDLERS
+    from waxal_agent.agent import TOOLS as WAXAL_TOOLS, spoken_reply
+    from waxal_agent.voice_ui import VoiceUI
+    assert "speak_wolof" in WAXAL_TOOLS and any(t["name"] == "speak_wolof" for t in schemas.TOOLS)
+    state.ui = VoiceUI()
+    assert "finish your turn" in TOOL_HANDLERS["speak_wolof"](text="Il y a trois documents.")
+    TOOL_HANDLERS["speak_wolof"](text="Il y a trois documents.")           # twice: spoken once
+    assert state.ui.spoken == ["Il y a trois documents."]
+    assert spoken_reply("chatter", [], state.ui.spoken) == "Il y a trois documents."   # not the agent's other text
+    assert spoken_reply("My answer.", [], []) == "My answer."                          # no tool call: the final reply
+    assert spoken_reply("x", ["Quel fichier ?"], ["Salut"]) == "Quel fichier ?"        # a question comes first
+
+
+def test_with_wolof_as_the_reply_language_ask_human_speaks_the_question_itself(monkeypatch):
+    from waxal_agent import voice_ui
+    monkeypatch.setattr(voice_ui, "REPLY_LANGUAGE", "wo")
+    ui = voice_ui.VoiceUI()
+    ui.panel("Ban fichier?", tone="question")
+    assert "finish your turn" in ui.ask_text("Your answer: ") and ui.spoken == ["Ban fichier?"]

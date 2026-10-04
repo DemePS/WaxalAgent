@@ -7,7 +7,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from . import audio
-from .agent import REPLY_LANGUAGE
+from .language import REPLY_LANGUAGE
 from .mt.base import Translator
 from .soynade_api import SoynadeError
 from .stt.base import Listener
