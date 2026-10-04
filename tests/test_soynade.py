@@ -98,3 +98,10 @@ def test_engine_names():
     assert [type(e).__name__ for e in build_engines("fake")] == ["FakeListener", "FakeTranslator", "FakeSpeaker"]
     with pytest.raises(SystemExit, match="Unknown engines"):
         build_engines("nope")
+
+
+def test_the_soynade_asr_engines_use_the_api_for_listening_only(monkeypatch):
+    from waxal_agent.stt.soynade_api import SoynadeListener
+    monkeypatch.setenv("SOYNADE_API_KEY", "k")
+    listener, translator, speaker = build_engines("soynade-asr")
+    assert isinstance(listener, SoynadeListener) and type(translator).__name__ == "FakeTranslator"

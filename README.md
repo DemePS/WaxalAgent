@@ -38,7 +38,9 @@ real models and a WhatsApp test with Meta's free test number and a temporary pub
 
 Soynade offers a hosted, OpenAI-compatible API (`https://api.soynade.ai/openai/v1`, key in `SOYNADE_API_KEY`). **Speech
 recognition is wired** (`stt/soynade_api.py`, model `oolel-speech-v1`, from Soynade's quickstart): try it on a Wolof
-recording with `uv run python scripts/check_api.py recording.wav`. Translation and speech output through the API are **not
+recording with `uv run python scripts/check_api.py recording.wav`, or press and record in the browser:
+`SOYNADE_API_KEY=... uv run waxal-agent serve --engines soynade-asr`, open `http://127.0.0.1:8000/`, tick
+**Transcribe only**, hold the button and speak: you see what the recogniser heard (the rest of the pipeline is not used). Translation and speech output through the API are **not
 wired yet**: they wait for the corresponding pages of Soynade's reference. Until then a full turn needs the model-based
 engines below. Everything you say or hear goes to Soynade when you use the API: say so in your terms.
 

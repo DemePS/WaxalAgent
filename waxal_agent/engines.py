@@ -4,17 +4,23 @@ from .mt.base import Translator
 from .stt.base import Listener
 from .tts.base import Speaker
 
-NAMES = ("fake", "soynade", "wolof")
+NAMES = ("fake", "soynade-asr", "soynade", "wolof")
 
 
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
-    """fake: stand-ins. soynade: Soynade Research's Wolof-HuBERT-CTC, Oolel and Oolel-Voices.
+    """fake: stand-ins. soynade-asr: Soynade's hosted speech recognition, the rest stand-ins (try the microphone).
+    soynade: Soynade Research's Wolof-HuBERT-CTC, Oolel and Oolel-Voices.
     wolof: the first set: a Whisper Wolof model, NLLB-200 and SpeechT5."""
     if name == "fake":
         from .mt.fake import FakeTranslator
         from .stt.fake import FakeListener
         from .tts.fake import FakeSpeaker
         return FakeListener(default="Nanga def?"), FakeTranslator(), FakeSpeaker()
+    if name == "soynade-asr":  # recognition through Soynade's API (SOYNADE_API_KEY); translation and voice are stand-ins
+        from .mt.fake import FakeTranslator
+        from .stt.soynade_api import SoynadeListener
+        from .tts.fake import FakeSpeaker
+        return SoynadeListener(), FakeTranslator(), FakeSpeaker()
     if name == "soynade":
         from .mt.oolel import Oolel
         from .stt.whisper_wolof import SOYNADE_MODEL, WhisperWolof

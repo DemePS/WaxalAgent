@@ -34,6 +34,10 @@ class Pipeline:
         """A recording in any common format (browser webm, WhatsApp ogg...)."""
         return self.from_wolof(user_id, self.listener.transcribe(audio.to_wav(recording)))
 
+    def transcribe(self, recording: bytes) -> str:
+        """Only listen: what was said, in Wolof (no translation, no agent)."""
+        return self.listener.transcribe(audio.to_wav(recording))
+
     def from_wolof(self, user_id: str, wolof: str) -> TurnResult:
         """Wolof text (typed, or already transcribed)."""
         result = TurnResult(wolof=wolof.strip())

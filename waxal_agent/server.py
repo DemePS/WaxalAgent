@@ -12,6 +12,7 @@ from pydantic import BaseModel
 
 from .audio import AudioError
 from .pipeline import Pipeline, TurnResult
+from .soynade_api import SoynadeError
 from .whatsapp import WhatsAppBot, signature_ok
 
 STATIC = Path(__file__).parent / "static"
@@ -60,6 +61,22 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
                 return as_json(pipeline.from_audio(user_of(request), data))
             except AudioError as e:
                 raise HTTPException(400, str(e))
+
+        @app.post("/api/transcribe")
+        async def transcribe(request: Request):
+            """Only the recogniser: a recording in, the Wolof words out (to try speech recognition on its own)."""
+            check(request)
+            data = await request.body()
+            if not data:
+                raise HTTPException(400, "No audio received.")
+            if len(data) > MAX_RECORDING_BYTES:
+                raise HTTPException(413, "The recording is too long.")
+            try:
+                return {"wolof": pipeline.transcribe(data)}
+            except AudioError as e:
+                raise HTTPException(400, str(e))
+            except SoynadeError as e:
+                raise HTTPException(502, str(e))
 
         @app.post("/api/text")
         async def text(request: Request, body: TextIn):

@@ -21,6 +21,7 @@
   .turn { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:12px 0; }
   .label { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:8px; }
   .label:first-child { margin-top:0; } .turn p { margin:2px 0 0; white-space:pre-wrap; }
+  .only { display:block; margin:10px 0 0; color:var(--muted); font-size:.92rem; } .only input { margin-right:6px; }
   .note { color:var(--danger); font-size:.9rem; } audio { width:100%; margin-top:10px; } #status { color:var(--muted); min-height:1.4em; }
 </style>
 </head>
@@ -29,6 +30,7 @@
   <h1>WaxalAgent</h1>
   <p class="sub">Hold the button and speak Wolof. You see what was heard, what the agent understood in English, and its answer.</p>
   <button id="talk" type="button">Hold to talk</button>
+  <label class="only"><input type="checkbox" id="only"> Transcribe only: just show what was heard (no translation, no agent)</label>
   <form id="typed"><input type="text" id="line" placeholder="or type Wolof here" autocomplete="off"><button class="small">Send</button></form>
   <div id="status" role="status"></div>
   <div id="turns"></div>
@@ -68,7 +70,7 @@ async function start() {
   chunks = []; recorder = new MediaRecorder(stream);
   recorder.ondataavailable = e => chunks.push(e.data);
   recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: recorder.mimeType }); recorder = null;
-    if (blob.size > 1000) send('/api/turn', blob, blob.type || 'application/octet-stream'); else statusEl.textContent = 'Too short: hold the button while you speak.'; };
+    if (blob.size > 1000) send(document.getElementById('only').checked ? '/api/transcribe' : '/api/turn', blob, blob.type || 'application/octet-stream'); else statusEl.textContent = 'Too short: hold the button while you speak.'; };
   recorder.start(); talk.classList.add('rec'); talk.textContent = 'Listening… release to send'; statusEl.textContent = '';
 }
 function stop() { if (recorder && recorder.state === 'recording') recorder.stop(); talk.classList.remove('rec'); talk.textContent = 'Hold to talk'; }

@@ -64,3 +64,23 @@ def test_token_is_required_when_set():
 def test_wav_to_ogg_opus_and_back():
     ogg = audio.to_ogg_opus(tone())
     assert ogg[:4] == b"OggS" and audio.to_wav(ogg)[:4] == b"RIFF"
+
+
+def test_transcribe_only_returns_just_the_wolof_words(monkeypatch):
+    from waxal_agent.soynade_api import SoynadeError
+    c = client(listener=FakeListener("nanga def"))
+    monkeypatch.setattr("waxal_agent.pipeline.audio.to_wav", lambda data: b"WAV")
+    r = c.post("/api/transcribe", content=b"recording")
+    assert r.status_code == 200 and r.json() == {"wolof": "nanga def"}
+    assert c.post("/api/transcribe", content=b"").status_code == 400
+
+    class Down:
+        def transcribe(self, wav):
+            raise SoynadeError("Soynade API call failed (oolel-speech-v1): HTTP 401: Invalid API key")
+    down = client(listener=Down())
+    r = down.post("/api/transcribe", content=b"recording")
+    assert r.status_code == 502 and "Invalid API key" in r.json()["detail"]
+
+
+def test_the_page_offers_a_transcribe_only_switch():
+    assert 'id="only"' in client().get("/").text
