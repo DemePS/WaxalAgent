@@ -24,18 +24,27 @@ def test_speech_is_posted_to_the_voice_and_raw_pcm_becomes_a_wav():
         return httpx.Response(200, content=b"\x01\x00" * 160)
     wav = ElevenLabsSpeaker(client(handler)).speak("Nanga def?")
     request = seen[0]
-    assert request.url.path == "/v1/text-to-speech/21m00Tcm4TlvDq8ikWAM" and request.url.params["output_format"] == "pcm_16000"
-    assert request.headers["xi-api-key"] == "KEY" and json.loads(request.content) == {"text": "Nanga def?", "model_id": "eleven_v4", "language_code": "wo"}
+    assert request.url.path == "/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb" and request.url.params["output_format"] == "pcm_16000"
+    assert request.headers["xi-api-key"] == "KEY" and json.loads(request.content) == {"text": "Nanga def?", "model_id": "eleven_v4"}
     with wave.open(io.BytesIO(wav)) as w:
         assert (w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()) == (1, 2, 16000, 160)
 
 
-def test_voice_model_and_language_can_be_changed_or_left_out(monkeypatch):
+def test_voice_model_and_language_can_be_changed(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_VOICE_ID", "V2")
     monkeypatch.setenv("ELEVENLABS_TTS_MODEL", "eleven_v4_turbo")
-    monkeypatch.setenv("ELEVENLABS_TTS_LANGUAGE", "")
+    monkeypatch.setenv("ELEVENLABS_TTS_LANGUAGE", "wo")
     speaker = ElevenLabsSpeaker(client(lambda r: httpx.Response(200, content=b"\0\0")))
-    assert speaker.voice == "V2" and speaker.request_body("x") == {"text": "x", "model_id": "eleven_v4_turbo"}
+    assert speaker.voice == "V2" and speaker.request_body("x") == {"text": "x", "model_id": "eleven_v4_turbo", "language_code": "wo"}
+
+
+def test_an_mp3_format_is_converted_to_wav(monkeypatch):
+    from waxal_agent import audio
+    monkeypatch.setenv("ELEVENLABS_TTS_FORMAT", "mp3_44100_128")
+    monkeypatch.setattr(audio, "to_wav", lambda data: b"WAV:" + data)
+    seen = []
+    speaker = ElevenLabsSpeaker(client(lambda r: seen.append(r) or httpx.Response(200, content=b"MP3DATA")))
+    assert speaker.speak("x") == b"WAV:MP3DATA" and seen[0].url.params["output_format"] == "mp3_44100_128"
 
 
 def test_recognition_is_a_multipart_upload_and_returns_the_text():
