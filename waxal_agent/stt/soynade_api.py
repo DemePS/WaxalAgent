@@ -27,6 +27,6 @@ class SoynadeListener:
     def translate_audio(self, wav: bytes, source: str = "wo", target: str = "en") -> str:
         """Wolof speech straight to text in another language (one call instead of recognition then translation)."""
         data = {"source_language": source, "target_language": target, "response_format": "json",
-                "temperature": os.environ.get("SOYNADE_TRANSLATE_TEMPERATURE") or "0.1"}
+                "temperature": os.environ.get("SOYNADE_TRANSLATE_TEMPERATURE") or "0"}
         response = self.client.post_file("audio/translations", {"file": ("audio.wav", wav, "audio/wav")}, data)
         return text_in(response, ("text", "translation", "translated_text"))

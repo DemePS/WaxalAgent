@@ -2,7 +2,7 @@
 
 The request is the one in Soynade's reference:
 
-    {"text": ..., "language": "wo", "output_format": "wav", "exaggeration": 0.2, "temperature": 0.1,
+    {"text": ..., "language": "wo", "output_format": "wav", "exaggeration": 0.2, "temperature": 0,
      "cfg_weight": 0.5, "seed": 0}
 
 and the answer is the WAV file itself. The tuning values can be changed in the environment: SOYNADE_TTS_EXAGGERATION,
@@ -38,7 +38,7 @@ class SoynadeSpeaker:
         env = os.environ
         return {"text": text, "language": env.get("SOYNADE_TTS_LANGUAGE") or "wo", "output_format": "wav",
                 "exaggeration": float(env.get("SOYNADE_TTS_EXAGGERATION") or 0.2),
-                "temperature": float(env.get("SOYNADE_TTS_TEMPERATURE") or 0.1),
+                "temperature": float(env.get("SOYNADE_TTS_TEMPERATURE") or 0),
                 "cfg_weight": float(env.get("SOYNADE_TTS_CFG") or 0.5),
                 "seed": int(env.get("SOYNADE_TTS_SEED") or 0)}
 

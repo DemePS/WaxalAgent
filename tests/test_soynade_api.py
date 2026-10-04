@@ -58,7 +58,7 @@ def test_speech_goes_straight_to_english_in_one_call():
     request = seen[0]
     assert str(request.url) == "https://api.example/v1/audio/translations" and request.headers["content-type"].startswith("multipart/form-data")
     for field in (b'name="source_language"', b"wo", b'name="target_language"', b"en", b'name="response_format"', b"json",
-                  b'name="temperature"', b"0.1", b'name="file"', b"RIFFwav"):
+                  b'name="temperature"', b"0", b'name="file"', b"RIFFwav"):
         assert field in request.content
 
 

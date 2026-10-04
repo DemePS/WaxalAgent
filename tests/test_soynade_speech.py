@@ -33,7 +33,7 @@ def test_the_request_is_the_one_in_soynades_reference_and_the_wav_comes_back():
     assert speaker(handler).speak("Naka nga def?") == b"WAV:RIFF...."
     assert str(seen[0].url) == "https://api.example/v1/text-to-speech" and seen[0].headers["authorization"] == "Bearer K"
     assert json.loads(seen[0].content) == {"text": "Naka nga def?", "language": "wo", "output_format": "wav", "exaggeration": 0.2,
-                                           "temperature": 0.1, "cfg_weight": 0.5, "seed": 0}
+                                           "temperature": 0, "cfg_weight": 0.5, "seed": 0}
 
 
 def test_the_tuning_values_can_be_changed(monkeypatch):

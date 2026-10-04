@@ -20,14 +20,14 @@ SYSTEM_PROMPT = """You are a helpful assistant that talks with people through sp
 folder {workspace} and can read the files in it.
 
 Your English reply is translated into Wolof by a machine and then spoken aloud. So:
-- Answer in short, plain sentences. Two to five sentences is usually enough.
+- Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
 - If you need a file you cannot find, say so and say what you would need.
 - You cannot change files or ask for approvals in this channel. Say clearly when something needs more than reading.
-- If you need to ask the person something, use ask_human with one short question, then end your turn: they answer by voice in their next message.
+- If you need to ask the person something, use ask_human with one very brief question (a few words), then end your turn: they answer by voice in their next message.
 The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
-request is unclear, ask one short question instead of guessing."""
+request is unclear, ask one very brief question instead of guessing."""
 
 
 def user_folder(root: Path, user_id: str) -> Path:
@@ -48,7 +48,7 @@ def spoken_reply(reply: str, questions: list[str]) -> str:
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
-CONCISE = "[instructions: be concise, keep your answer as short as possible]"
+CONCISE = "[instructions: be concise, keep your answer as short as possible, in short sentences]"
 
 
 class AgentTurns:
