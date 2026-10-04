@@ -75,3 +75,10 @@ def test_the_document_language_is_the_source_of_the_translation_to_wolof(monkeyp
     p.agent = type("A", (), {"ask": lambda self, u, e: ("Le total est 642.", [])})()
     p._answer("u", pipeline.TurnResult(english="total?"))
     assert translator.calls[-1] == ("Le total est 642.", "pt", "wo")
+
+
+def test_a_wolof_reply_is_spoken_without_translation(monkeypatch):
+    monkeypatch.setattr("waxal_agent.pipeline.TRANSLATION_SOURCE", "wo")
+    translator = FakeTranslator()
+    result = Pipeline(DirectListener(), translator, FakeSpeaker(), StubAgent()).from_audio("u", b"rec")
+    assert translator.calls == [] and result.reply_wolof and result.audio_wav        # WAXAL_REPLY_LANGUAGE=wo (the default)

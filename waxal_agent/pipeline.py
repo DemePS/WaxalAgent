@@ -87,7 +87,8 @@ class Pipeline:
         if not spoken:
             result.notes.append("the agent gave no answer")
             return result
-        parts = [self.translator.translate(s, TRANSLATION_SOURCE, "wo") for s in chunks(spoken)]
+        parts = list(chunks(spoken)) if TRANSLATION_SOURCE == "wo" else [  # a Wolof reply is spoken as it is
+            self.translator.translate(s, TRANSLATION_SOURCE, "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
         log.info("[4] reply -> Wolof: %s", result.reply_wolof)
         started = time.monotonic()
