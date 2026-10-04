@@ -153,3 +153,18 @@ def test_a_failing_server_is_tried_twice_not_for_minutes():
     with pytest.raises(SoynadeError, match="502: Bad gateway"):
         make(handler).post_json("text-to-speech", {"text": "x"})
     assert len(calls) == 2
+
+
+def test_after_a_rate_limit_that_retries_did_not_clear_no_call_is_made_for_a_while(sleeps):
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(429, json={"title": "Too Many Requests"})
+    client = make(handler, retries=1)
+    with pytest.raises(SoynadeError, match="rate limit of your Soynade plan"):
+        client.post_json("translations", {"text": "x"})
+    assert len(calls) == 2
+    with pytest.raises(SoynadeError, match="not calling again") as raised:         # refused at once, without a call
+        client.post_json("translations", {"text": "y"})
+    assert len(calls) == 2 and raised.value.status == 429

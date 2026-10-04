@@ -45,12 +45,16 @@ class SoynadeClient:
         self.base_url = (base_url or os.environ.get("SOYNADE_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.http = http or httpx.Client(timeout=httpx.Timeout(120, connect=15))
         # Rate limits (HTTP 429) are normal on a small plan: wait as the server says, retry a few times, and never send two
-        # calls closer than min_interval seconds (SOYNADE_MIN_INTERVAL, default 0.5; SOYNADE_RETRIES, default 4; a 5xx is retried only SOYNADE_SERVER_RETRIES times, default 1).
-        self.retries = retries if retries is not None else int(os.environ.get("SOYNADE_RETRIES") or 4)
+        # calls closer than min_interval seconds (SOYNADE_MIN_INTERVAL, default 0.5; SOYNADE_RETRIES, default 2; a 5xx is retried only SOYNADE_SERVER_RETRIES times, default 1).
+        self.retries = retries if retries is not None else int(os.environ.get("SOYNADE_RETRIES") or 2)
         self.backoff = backoff
         self.server_retries = int(os.environ.get("SOYNADE_SERVER_RETRIES") or 1)  # extra tries after a 5xx (not for 429)
         self.min_interval = (min_interval if min_interval is not None
                              else float(os.environ.get("SOYNADE_MIN_INTERVAL") or 0.5))
+        # After a rate limit that retries did not clear, no call is made for a while (SOYNADE_COOLDOWN, default 60 s): every
+        # further call would be refused too, and each one would only extend the limit.
+        self.cooldown = float(os.environ.get("SOYNADE_COOLDOWN") or 60)
+        self._cooldown_until = 0.0
         self._gate = threading.Lock()
         self._last_call = 0.0
 
@@ -69,7 +73,10 @@ class SoynadeClient:
             self._last_call = time.monotonic()
 
     def _request(self, method: str, path: str, **options) -> httpx.Response:
-        last, wait, server_errors = "", 0.0, 0
+        remaining = self._cooldown_until - time.monotonic()
+        if remaining > 0:
+            raise SoynadeError(f"Soynade's rate limit was reached: not calling again for {remaining:.0f} s (SOYNADE_COOLDOWN).", status=429)
+        last, wait, server_errors, asked = "", 0.0, 0, 0.0
         for attempt in range(self.retries + 1):
             self._throttle()
             started = time.monotonic()
@@ -90,11 +97,13 @@ class SoynadeClient:
                         raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
                 if response.status_code not in RETRY_STATUS:
                     raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
-                wait = _retry_after(response)
+                wait = asked = _retry_after(response)
             if attempt < self.retries:
                 time.sleep(min(max(wait, self.backoff * (2 ** attempt)), 30))
                 wait = 0.0
         limited = last.startswith("HTTP 429")
+        if limited:
+            self._cooldown_until = time.monotonic() + max(asked, self.cooldown)
         hint = (" The rate limit of your Soynade plan is reached: wait a minute, or check the limits in Soynade's console."
                 if limited else "")
         raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}.{hint}", status=429 if limited else None)
