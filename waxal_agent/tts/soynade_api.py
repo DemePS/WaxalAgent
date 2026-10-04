@@ -12,10 +12,14 @@ The result is always converted to 16 kHz mono WAV (ffmpeg), whatever Soynade ret
 
 import base64
 import os
+import time
 
 from .. import audio
 from ..soynade_api import SoynadeClient, SoynadeError
 from ..soynade_models import pick
+from .base import SpeechUnavailable
+
+RETRY_AFTER_SECONDS = 600  # once Soynade says speech output is not available, do not ask again for ten minutes
 
 
 class SoynadeSpeaker:
@@ -24,6 +28,8 @@ class SoynadeSpeaker:
         self._model = model or os.environ.get("SOYNADE_TTS_MODEL")
         self.voice = voice or os.environ.get("SOYNADE_TTS_VOICE") or "default"
         self.route = (os.environ.get("SOYNADE_TTS_ROUTE") or "").lower()
+        self._unavailable_until = 0.0
+        self._reason = ""
 
     @property
     def model(self) -> str:
@@ -32,6 +38,20 @@ class SoynadeSpeaker:
         return self._model
 
     def speak(self, text: str) -> bytes:
+        if (os.environ.get("SOYNADE_TTS") or "").lower() in ("off", "0", "false", "no"):
+            raise SpeechUnavailable("Speech output is switched off (SOYNADE_TTS=off).")
+        if time.monotonic() < self._unavailable_until:
+            raise SpeechUnavailable(self._reason)
+        try:
+            return self._speak(text)
+        except SoynadeError as e:
+            if "only text output" in str(e).lower():  # what Soynade answers during its launch: voice is not offered yet
+                self._reason = "Soynade's API does not offer speech output yet (\"Only text output is supported during launch\")."
+                self._unavailable_until = time.monotonic() + RETRY_AFTER_SECONDS
+                raise SpeechUnavailable(self._reason) from e
+            raise
+
+    def _speak(self, text: str) -> bytes:
         if self.route in ("speech", "chat"):
             routes = [self.route]
         else:

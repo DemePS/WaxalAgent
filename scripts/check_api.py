@@ -12,6 +12,7 @@ from pathlib import Path
 
 from waxal_agent import audio, certs
 from waxal_agent.soynade_api import SoynadeClient, SoynadeError
+from waxal_agent.tts.base import SpeechUnavailable
 
 
 def timed(fn):
@@ -50,6 +51,8 @@ def main(argv: list[str]) -> None:
 if __name__ == "__main__":
     try:
         main(sys.argv[1:])
+    except SpeechUnavailable as e:
+        sys.exit(f"No voice: {e}")
     except (SoynadeError, audio.AudioError) as e:
         help_text = certs.explain(e)
         sys.exit(f"Failed: {e}" + (f"\n\n{help_text}" if help_text else ""))

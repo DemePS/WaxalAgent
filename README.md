@@ -42,8 +42,8 @@ in `SOYNADE_API_KEY`, created in their console). **No model is downloaded or run
 | Stage | Status |
 |---|---|
 | Wolof speech -> text | wired: `stt/soynade_api.py`, model `oolel-speech-v1` (from Soynade's quickstart) |
-| Wolof <-> English | wired as a **best reading**: `mt/soynade_api.py` asks a chat model "Translate to Wolof the following sentence" (their own pipeline's prompt). The model id is `SOYNADE_MT_MODEL`, else found in the model list |
-| Wolof text -> speech | wired as a **best reading**: `tts/soynade_api.py` tries `POST audio/speech`, then chat completions with audio output (OpenAI-style routes). Model `SOYNADE_TTS_MODEL` (else found in the list), voice `SOYNADE_TTS_VOICE` |
+| Wolof <-> English | wired and **tested live** ("How are you?" -> "Naka nga def?"): `mt/soynade_api.py` asks a chat model "Translate to Wolof the following sentence" (their own pipeline's prompt). The model id is `SOYNADE_MT_MODEL`, else found in the model list |
+| Wolof text -> speech | **not available from Soynade yet**: their API answers "Only text output is supported during launch". `tts/soynade_api.py` is ready (chat route with audio output, then `audio/speech`) and a reply stays **text only** (voice note skipped, text message sent) until Soynade turns audio output on; it asks again every ten minutes. `SOYNADE_TTS=off` stops asking |
 
 The last two rows are not confirmed by any Soynade page I could read (their reference is blocked where this was written).
 Find out what works for your key, one step at a time:

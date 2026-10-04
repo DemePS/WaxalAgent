@@ -7,7 +7,7 @@ from . import audio
 from .mt.base import Translator
 from .stt.base import Listener
 from .text import chunks, speakable
-from .tts.base import Speaker
+from .tts.base import Speaker, SpeechUnavailable
 
 NOT_HEARD = "I did not hear anything. Please try again."  # translated like every reply: no Wolof is written by hand here
 
@@ -44,7 +44,7 @@ class Pipeline:
         if not result.wolof:
             result.reply_english = NOT_HEARD
             result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
-            result.audio_wav = self.speaker.speak(result.reply_wolof)
+            result.audio_wav = self._speak([result.reply_wolof], result)
             result.notes.append("nothing was heard")
             return result
         result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
@@ -56,8 +56,16 @@ class Pipeline:
             return result
         parts = [self.translator.translate(s, "en", "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
-        result.audio_wav = _join_wavs([self.speaker.speak(p) for p in parts])
+        result.audio_wav = self._speak(parts, result)
         return result
+
+    def _speak(self, parts: list[str], result: TurnResult) -> bytes:
+        """The spoken reply; when speech output is not available, the reply stays text only (and says why in the notes)."""
+        try:
+            return _join_wavs([self.speaker.speak(p) for p in parts])
+        except SpeechUnavailable as e:
+            result.notes.append(f"No voice: {e}")
+            return b""
 
 
 def _join_wavs(wavs: list[bytes]) -> bytes:
