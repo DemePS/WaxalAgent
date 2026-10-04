@@ -1,0 +1,45 @@
+"""Run every stage of the real Wolof pipeline on your PC and say how long each takes.
+
+    uv sync --extra models
+    uv run python scripts/check_models.py [recording.wav]     # a Wolof recording; optional
+
+It translates a few English sentences to Wolof and back, speaks the Wolof into check_*.wav (listen to them: only a
+Wolof speaker can judge them), and, with a recording, shows what the recogniser hears and its English.
+"""
+
+import sys
+import time
+from pathlib import Path
+
+SENTENCES = ["Hello, how are you?", "The total of the invoice is six hundred and forty two euros.",
+             "Please send me the file tomorrow morning."]
+
+
+def timed(label, fn):
+    start = time.monotonic()
+    result = fn()
+    print(f"  [{time.monotonic() - start:5.1f} s] {label}")
+    return result
+
+
+def main() -> None:
+    from waxal_agent.mt.nllb import Nllb
+    from waxal_agent.stt.whisper_wolof import WhisperWolof
+    from waxal_agent.tts.speecht5_wolof import SpeechT5Wolof
+    mt, tts = Nllb(), SpeechT5Wolof()
+    print("English -> Wolof -> English (does the meaning survive?)")
+    for i, sentence in enumerate(SENTENCES, 1):
+        wolof = timed("en -> wo", lambda s=sentence: mt.translate(s, "en", "wo"))
+        back = timed("wo -> en", lambda w=wolof: mt.translate(w, "wo", "en"))
+        print(f"  {sentence!r}\n    wolof: {wolof!r}\n    back:  {back!r}")
+        wav = timed("speak", lambda w=wolof: tts.speak(w))
+        Path(f"check_{i}.wav").write_bytes(wav)
+    if len(sys.argv) > 1:
+        print("A recording")
+        wolof = timed("listen", lambda: WhisperWolof().transcribe(Path(sys.argv[1]).read_bytes()))
+        print(f"  heard:  {wolof!r}\n  english: {mt.translate(wolof, 'wo', 'en')!r}")
+    print("Done. Listen to check_1.wav ... check_3.wav.")
+
+
+if __name__ == "__main__":
+    main()

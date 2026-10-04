@@ -2,15 +2,17 @@
 
 import base64
 import hmac
+import json
 import os
 from pathlib import Path
 
-from fastapi import FastAPI, HTTPException, Request
-from fastapi.responses import FileResponse
+from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from .audio import AudioError
 from .pipeline import Pipeline, TurnResult
+from .whatsapp import WhatsAppBot, signature_ok
 
 STATIC = Path(__file__).parent / "static"
 MAX_RECORDING_BYTES = 10 * 1024 * 1024
@@ -26,8 +28,10 @@ def as_json(result: TurnResult) -> dict:
             "audio": base64.b64encode(result.audio_wav).decode("ascii"), "audio_type": "audio/wav"}
 
 
-def create_app(pipeline: Pipeline, token: str | None = None) -> FastAPI:
-    """`token`: when set (WAXAL_TOKEN), every /api call must send it in the X-Token header."""
+def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | None = None,
+               test_page: bool = True) -> FastAPI:
+    """`token`: when set (WAXAL_TOKEN), every /api call must send it in the X-Token header.
+    `test_page`: False leaves only the WhatsApp webhook (a public server must not offer the test page)."""
     app = FastAPI(title="WaxalAgent", docs_url=None, redoc_url=None, openapi_url=None)
 
     def check(request: Request) -> None:
@@ -37,34 +41,61 @@ def create_app(pipeline: Pipeline, token: str | None = None) -> FastAPI:
     def user_of(request: Request) -> str:
         return request.headers.get("x-user", "test")[:64]
 
-    @app.get("/api/health")
-    def health(request: Request):
-        check(request)
-        return {"ok": True}
+    def add_test_routes() -> None:
+        @app.get("/api/health")
+        def health(request: Request):
+            check(request)
+            return {"ok": True}
 
-    @app.post("/api/turn")
-    async def turn(request: Request):
-        """The body is the recording (any audio format); the answer is JSON with both languages and the audio."""
-        check(request)
-        data = await request.body()
-        if not data:
-            raise HTTPException(400, "No audio received.")
-        if len(data) > MAX_RECORDING_BYTES:
-            raise HTTPException(413, "The recording is too long.")
-        try:
-            return as_json(pipeline.from_audio(user_of(request), data))
-        except AudioError as e:
-            raise HTTPException(400, str(e))
+        @app.post("/api/turn")
+        async def turn(request: Request):
+            """The body is the recording (any audio format); the answer is JSON with both languages and the audio."""
+            check(request)
+            data = await request.body()
+            if not data:
+                raise HTTPException(400, "No audio received.")
+            if len(data) > MAX_RECORDING_BYTES:
+                raise HTTPException(413, "The recording is too long.")
+            try:
+                return as_json(pipeline.from_audio(user_of(request), data))
+            except AudioError as e:
+                raise HTTPException(400, str(e))
 
-    @app.post("/api/text")
-    async def text(request: Request, body: TextIn):
-        """Wolof typed instead of spoken (for testing without a microphone)."""
-        check(request)
-        return as_json(pipeline.from_wolof(user_of(request), body.text))
+        @app.post("/api/text")
+        async def text(request: Request, body: TextIn):
+            """Wolof typed instead of spoken (for testing without a microphone)."""
+            check(request)
+            return as_json(pipeline.from_wolof(user_of(request), body.text))
 
-    @app.get("/")
-    def index():
-        return FileResponse(STATIC / "index.html")
+        @app.get("/")
+        def index():
+            return FileResponse(STATIC / "index.html")
+
+
+    if bot is not None:
+        @app.get("/webhook")
+        def webhook_verify(request: Request):
+            """Meta calls this once, when the webhook address is saved in its settings."""
+            challenge = bot.verify(dict(request.query_params))
+            if challenge is None:
+                raise HTTPException(403, "Forbidden")
+            return PlainTextResponse(challenge)
+
+        @app.post("/webhook")
+        async def webhook(request: Request, background: BackgroundTasks):
+            """Answer 200 at once (Meta retries slow calls); the turn runs in the background."""
+            body = await request.body()
+            if not signature_ok(body, request.headers.get("x-hub-signature-256"), bot.config.app_secret):
+                raise HTTPException(403, "Bad signature")
+            try:
+                payload = json.loads(body)
+            except ValueError:
+                raise HTTPException(400, "Not JSON")
+            background.add_task(bot.handle, payload)
+            return {"ok": True}
+
+    if test_page:
+        add_test_routes()
 
     return app
 
