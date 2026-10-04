@@ -63,3 +63,21 @@ def test_a_recording_is_converted_then_listened_to(monkeypatch):
     listener = FakeListener("nanga def")
     result = Pipeline(listener, FakeTranslator(), FakeSpeaker(), StubAgent()).from_audio("u", b"abc")
     assert listener.heard == [6] and result.wolof == "nanga def"
+
+
+def test_long_wolof_replies_are_spoken_in_pieces_of_at_most_450_characters():
+    from waxal_agent.pipeline import Pipeline, TurnResult, SPEECH_LIMIT
+    import io, wave
+    spoken = []
+
+    class Voice:
+        def speak(self, text):
+            spoken.append(text)
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as w:
+                w.setnchannels(1), w.setsampwidth(2), w.setframerate(16000), w.writeframes(b"\0\0")
+            return buf.getvalue()
+    pipe = Pipeline.__new__(Pipeline)
+    pipe.speaker = Voice()
+    pipe._speak([" ".join(["Nanga def, mangi fi rekk."] * 60)], TurnResult())
+    assert len(spoken) > 1 and all(len(p) <= SPEECH_LIMIT for p in spoken)

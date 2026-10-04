@@ -10,6 +10,7 @@ from .stt.base import Listener
 from .text import chunks, speakable
 from .tts.base import Speaker, SpeechUnavailable
 
+SPEECH_LIMIT = 450  # Soynade's text-to-speech refuses more than 500 characters per call
 NOT_HEARD = "I did not hear anything. Please try again."  # translated like every reply: no Wolof is written by hand here
 
 
@@ -78,7 +79,8 @@ class Pipeline:
     def _speak(self, parts: list[str], result: TurnResult) -> bytes:
         """The spoken reply; when speech output is not available, the reply stays text only (and says why in the notes)."""
         try:
-            return _join_wavs([self.speaker.speak(p) for p in parts])
+            pieces = [c for p in parts for c in chunks(p, SPEECH_LIMIT)]  # the speech route takes at most 500 characters
+            return _join_wavs([self.speaker.speak(c) for c in pieces])
         except SpeechUnavailable as e:
             result.notes.append(f"No voice: {e}")
             return b""
