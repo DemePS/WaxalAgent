@@ -7,25 +7,17 @@ import sys
 
 def build_pipeline(engines: str, data: str):
     from .agent import AgentTurns
+    from .engines import build_engines
     from .pipeline import Pipeline
-    if engines == "fake":
-        from .mt.fake import FakeTranslator
-        from .stt.fake import FakeListener
-        from .tts.fake import FakeSpeaker
-        return Pipeline(FakeListener(default="Nanga def?"), FakeTranslator(), FakeSpeaker(), AgentTurns(data))
-    if engines == "wolof":
-        from .mt.nllb import Nllb
-        from .stt.whisper_wolof import WhisperWolof
-        from .tts.speecht5_wolof import SpeechT5Wolof
-        return Pipeline(WhisperWolof(), Nllb(), SpeechT5Wolof(), AgentTurns(data))
-    raise SystemExit(f"Unknown engines {engines!r}: use 'fake' (no models) or 'wolof' (the real models, `uv sync --extra models`).")
+    listener, translator, speaker = build_engines(engines)
+    return Pipeline(listener, translator, speaker, AgentTurns(data))
 
 
 def main() -> None:
     parser = argparse.ArgumentParser(prog="waxal-agent", description="A Wolof voice agent.")
     sub = parser.add_subparsers(dest="command", required=True)
     serve = sub.add_parser("serve", help="Start the web server with the test page.")
-    serve.add_argument("--engines", default="fake", help="fake (no models) or wolof (the real models: uv sync --extra models).")
+    serve.add_argument("--engines", default="fake", help="fake (no models), soynade (Soynade Research's Wolof models) or wolof (Whisper + NLLB + SpeechT5); the real ones need: uv sync --extra models.")
     serve.add_argument("--whatsapp", action="store_true",
                        help="Answer WhatsApp voice notes at /webhook (needs the WHATSAPP_* variables, see README).")
     serve.add_argument("--host", default="127.0.0.1")

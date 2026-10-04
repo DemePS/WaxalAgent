@@ -37,23 +37,38 @@ real models and a WhatsApp test with Meta's free test number and a temporary pub
 ## The Wolof models (try them on your PC)
 
 ```bash
-uv sync --extra models                     # torch + transformers: a large download
-uv run python scripts/check_models.py      # English -> Wolof -> English, speaks check_1..3.wav, timings per stage
-uv run python scripts/check_models.py my_recording.wav     # also what the recogniser hears in a Wolof recording
-uv run waxal-agent serve --engines wolof   # the test page with the real models
+uv sync --extra models                          # torch + transformers + the TTS libraries: a large download
+uv run python scripts/check_models.py           # Soynade engines: English -> Wolof -> English, speaks check_1..3.wav, timings
+uv run python scripts/check_models.py soynade my_recording.wav     # also what the recogniser hears in a Wolof recording
+uv run waxal-agent serve --engines soynade      # the test page with the real models
 ```
 
-| Stage | Default model (set another with the variable) | Note |
-|---|---|---|
-| Wolof speech -> text | `M9and2M/whisper-small-wolof` (`WAXAL_ASR_MODEL`) | Whisper-small fine-tuned on about 57 h of Wolof |
-| Wolof <-> English | `facebook/nllb-200-distilled-600M` (`WAXAL_MT_MODEL`) | fine-tuned Wolof variants exist; weights are non-commercial (CC-BY-NC): check before charging for the service |
-| Wolof text -> speech | `bilalfaye/speecht5_tts-wolof` (`WAXAL_TTS_MODEL`) | needs `WAXAL_TTS_SPEAKER`, a `.npy` speaker embedding of 512 numbers; judge the voice by listening |
+Two sets of engines (`--engines`): **`soynade`** (chosen) and `wolof` (an earlier set kept for comparison: a Whisper Wolof
+model, NLLB-200, SpeechT5).
 
-I could not download or run these models where this code was written (no access to the model hub), so the engines were
-only tested with the model libraries replaced. Expect to adjust them after the first real run, and expect a turn to take
-seconds on a CPU (four model runs). Quality is the open question: ask a Wolof speaker to judge the translations and the voice
-before anyone relies on it. Names, numbers, file names and technical words are the weak spots; the agent is told to keep
-answers short and plain for that reason.
+| Stage | `soynade` engine (model; variable to change it) | Notes |
+|---|---|---|
+| Wolof speech -> text | `soynade-research/Wolof-HuBERT-CTC` (`WAXAL_ASR_MODEL`) | a HuBERT CTC model, run through transformers' ASR pipeline |
+| Wolof <-> English | `soynade-research/Oolel-Small-v0.1` (`WAXAL_MT_MODEL`) | a Qwen 2.5 chat model asked "Translate to Wolof the following sentence" (the prompt of Soynade's own translation pipeline); the Wolof -> English prompt is my assumption: change it with `WAXAL_MT_PROMPT_WO_EN` if the model card says otherwise. Greedy decoding |
+| Wolof text -> speech | `soynade-research/Oolel-Voices` (`WAXAL_TTS_MODEL`) | clones the style of a short reference recording: `WAXAL_TTS_VOICE=<a short .wav>`; `WAXAL_TTS_CFG`, `WAXAL_TTS_EXAGGERATION`, `WAXAL_TTS_TEMPERATURE` tune it (defaults 0.5, 0.2, 0.3) |
+
+**What is verified and what is not.** I could not open Hugging Face or soynade.ai where this was written, only search
+results and Soynade's public GitHub pages. From those: the three model repositories exist, the translation prompt and
+model id of their pipeline, and Oolel-Voices' loading and `generate` arguments (`snapshot_download`, then
+`AutoModel.from_pretrained(..., trust_remote_code=True)`, then `model.generate(text, audio_prompt_path=, cfg_weight=,
+exaggeration=, temperature=)`). Not verified: the exact model ids (Oolel-Small vs Oolel-v0.1, the ASR model's loading
+details), the wolof -> English prompt, the sample rate and output type of Oolel-Voices, and whether it works without a
+voice prompt. The engines are tested with the libraries replaced, never with the real models: expect to adjust them after
+the first run, and send me what `check_models.py` prints.
+
+**Licences, before anyone is charged or served publicly.** `trust_remote_code=True` runs code published in the Oolel-Voices
+repository. Soynade's translation pipeline is AGPL-3.0 (offer your source to the users of a network service you build on
+it), and each model has its own licence: read the three model cards. `transformers` and `diffusers` are pinned to the
+versions Oolel-Voices asks for.
+
+Quality is the open question: ask a Wolof speaker to judge the translations and the voice. Names, numbers, file names and
+technical words are the weak spots; the agent is told to keep answers short and plain for that reason. A turn is four
+model runs: expect seconds on a CPU, and Oolel is a language model, so the translation step is the slowest.
 
 ## WhatsApp
 

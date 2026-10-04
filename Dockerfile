@@ -1,7 +1,7 @@
 # A sandbox for WaxalAgent: the server, ffmpeg and (optionally) the Wolof models, isolated from your PC.
 #
 #   docker compose up --build            # fake engines: the plumbing, no models
-#   WAXAL_ENGINES=wolof docker compose up --build    # the real models (a big image, CPU only)
+#   WAXAL_ENGINES=soynade docker compose up --build    # the real models (a big image, CPU only)
 #
 # Behind a company proxy that re-signs HTTPS: put the company root certificate (a .crt or .pem file) in ./certs before
 # building; it is installed in the image so pip, git and the model downloads trust it.

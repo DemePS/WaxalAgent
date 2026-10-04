@@ -1,7 +1,7 @@
 """Run every stage of the real Wolof pipeline on your PC and say how long each takes.
 
     uv sync --extra models
-    uv run python scripts/check_models.py [recording.wav]     # a Wolof recording; optional
+    uv run python scripts/check_models.py [soynade|wolof] [recording.wav]     # engines (default soynade); a recording is optional
 
 It translates a few English sentences to Wolof and back, speaks the Wolof into check_*.wav (listen to them: only a
 Wolof speaker can judge them), and, with a recording, shows what the recogniser hears and its English.
@@ -25,10 +25,11 @@ def timed(label, fn):
 def main() -> None:
     from waxal_agent import certs
     certs.trust_system_certificates()  # before anything is downloaded: a company proxy re-signs HTTPS
-    from waxal_agent.mt.nllb import Nllb
-    from waxal_agent.stt.whisper_wolof import WhisperWolof
-    from waxal_agent.tts.speecht5_wolof import SpeechT5Wolof
-    mt, tts = Nllb(), SpeechT5Wolof()
+    from waxal_agent.engines import build_engines
+    args = sys.argv[1:]
+    name = args.pop(0) if args and args[0] in ("soynade", "wolof") else "soynade"
+    print(f"Engines: {name}")
+    asr, mt, tts = build_engines(name)
     print("English -> Wolof -> English (does the meaning survive?)")
     for i, sentence in enumerate(SENTENCES, 1):
         wolof = timed("en -> wo", lambda s=sentence: mt.translate(s, "en", "wo"))
@@ -36,9 +37,9 @@ def main() -> None:
         print(f"  {sentence!r}\n    wolof: {wolof!r}\n    back:  {back!r}")
         wav = timed("speak", lambda w=wolof: tts.speak(w))
         Path(f"check_{i}.wav").write_bytes(wav)
-    if len(sys.argv) > 1:
+    if args:
         print("A recording")
-        wolof = timed("listen", lambda: WhisperWolof().transcribe(Path(sys.argv[1]).read_bytes()))
+        wolof = timed("listen", lambda: asr.transcribe(Path(args[0]).read_bytes()))
         print(f"  heard:  {wolof!r}\n  english: {mt.translate(wolof, 'wo', 'en')!r}")
     print("Done. Listen to check_1.wav ... check_3.wav.")
 

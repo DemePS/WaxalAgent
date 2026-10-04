@@ -1,4 +1,5 @@
-"""Wolof speech recognition with a Whisper model fine-tuned on Wolof (needs the `models` extra: transformers, torch).
+"""Wolof speech recognition through transformers' ASR pipeline: a Whisper model fine-tuned on Wolof, or a CTC model such
+as Soynade's Wolof-HuBERT-CTC (needs the `models` extra: transformers, torch). The model is WAXAL_ASR_MODEL.
 
 Not run in this repository's tests with a real model (no network to the model hub there): `scripts/check_models.py`
 runs every stage on your PC and says what it heard and how long it took.
@@ -8,9 +9,10 @@ import io
 import os
 
 DEFAULT_MODEL = "M9and2M/whisper-small-wolof"
+SOYNADE_MODEL = "soynade-research/Wolof-HuBERT-CTC"
 
 
-class WhisperWolof:
+class WhisperWolof:  # any Wolof ASR model the transformers pipeline can load
     def __init__(self, model: str | None = None, device: str | None = None, loader=None) -> None:
         self.model = model or os.environ.get("WAXAL_ASR_MODEL") or DEFAULT_MODEL
         self.device = device

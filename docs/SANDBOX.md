@@ -24,13 +24,14 @@ your Claude access and the agent. From another terminal: `uv run python scripts/
 Then the real models:
 
 ```bash
-uv run --with numpy python scripts/make_speaker.py     # a placeholder voice: data/speaker.npy
-# in .env:  WAXAL_ENGINES=wolof
+# put a short recording of the voice you want (a .wav, 5 to 15 s of clear speech) at data/voice.wav
+# in .env:  WAXAL_ENGINES=soynade
 docker compose up --build
 ```
 
 The first request downloads the models into the `models` volume (several GB: be patient; the log shows it). Then use the
-**Hold to talk** button: Wolof speech in, Wolof speech out. A turn takes seconds on a CPU.
+**Hold to talk** button: Wolof speech in, Wolof speech out. A turn takes seconds on a CPU, and the first request is slow (the models load).
+`docker compose run --rm waxal python scripts/check_models.py soynade` prints what each stage produces and how long it takes.
 
 - **Company proxy that re-signs HTTPS:** before `docker compose up --build`, copy the company root certificate (a `.crt`
   or `.pem` from IT) into `certs/`: the image installs it, so downloads trust it.

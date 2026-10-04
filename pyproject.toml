@@ -14,7 +14,9 @@ dependencies = [
 
 [project.optional-dependencies]
 # The real Wolof models (milestone 2): heavy, installed only where they run.
-models = ["torch", "transformers", "soundfile", "numpy", "sentencepiece", "protobuf"]
+# transformers and diffusers are pinned as Oolel-Voices' model card asks; the other engines work with them too.
+models = ["torch", "transformers==4.46.3", "diffusers==0.29.0", "conformer==0.3.2", "librosa>=0.10.2", "numpy>=2.0.0",
+          "soundfile", "sentencepiece", "protobuf", "accelerate", "torchcodec", "s3tokenizer", "num2words"]
 
 [project.scripts]
 waxal-agent = "waxal_agent.cli:main"

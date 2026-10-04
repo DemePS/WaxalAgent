@@ -1,6 +1,6 @@
 # Sandbox: `docker compose up --build`, then open http://localhost:8000
 #   WAXAL_ENGINES=fake   (default) stand-ins for the models: tests the plumbing and the agent
-#   WAXAL_ENGINES=wolof  the real Wolof models (first start downloads them: several GB)
+#   WAXAL_ENGINES=soynade  the real Wolof models (first start downloads them: several GB)
 # WhatsApp: add `--profile tunnel` for a public https address (see docs/SANDBOX.md).
 
 services:
