@@ -43,9 +43,9 @@ created in their console), called directly over HTTPS: no chat client, no model 
 |---|---|---|
 | Wolof speech -> text | `POST /v1/audio/transcriptions`, `oolel-speech-v1` | multipart upload (file, model); worked live through an earlier route |
 | Wolof <-> English | `POST /v1/translations`, `oolel-speech-v1` | JSON; the field names are not in what I could read, so a few likely shapes are tried until one is accepted |
-| Wolof text -> speech | `POST /v1/text-to-speech`, `oolel-voices`, default voice | JSON `{model, input}` (then `{model, text}`); audio bytes or JSON with base64 / url |
+| Wolof text -> speech | `POST /v1/text-to-speech`, Oolel-Voices, default voice | **exact** (from Soynade's reference): JSON `{text, language: "wo", output_format: "wav", exaggeration, temperature, cfg_weight, seed}`; the answer is the WAV file |
 
-The request fields come from no page I could read, so a rejected shape shows **Soynade's own error message**: send it to me
+For recognition and translation the request fields come from no page I could read, so a rejected shape shows **Soynade's own error message**: send it to me
 (or the field list from their reference) and I correct it. Try one step at a time:
 
 ```bash

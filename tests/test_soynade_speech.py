@@ -19,33 +19,30 @@ def convert(monkeypatch):
     monkeypatch.setattr(module.audio, "to_wav", lambda raw: b"WAV:" + raw)
 
 
-def speaker(handler, **options):
+def speaker(handler):
     http = httpx.Client(transport=httpx.MockTransport(handler))
-    return SoynadeSpeaker(SoynadeClient("K", "https://api.example/v1", http, retries=0, min_interval=0, backoff=0), **options)
+    return SoynadeSpeaker(SoynadeClient("K", "https://api.example/v1", http, retries=0, min_interval=0, backoff=0))
 
 
-def test_text_goes_to_the_text_to_speech_route_and_audio_bytes_come_back():
+def test_the_request_is_the_one_in_soynades_reference_and_the_wav_comes_back():
     seen = []
 
     def handler(request):
         seen.append(request)
         return httpx.Response(200, headers={"content-type": "audio/wav"}, content=b"RIFF....")
     assert speaker(handler).speak("Naka nga def?") == b"WAV:RIFF...."
-    assert str(seen[0].url) == "https://api.example/v1/text-to-speech"
-    assert json.loads(seen[0].content) == {"model": "oolel-voices", "input": "Naka nga def?"}
+    assert str(seen[0].url) == "https://api.example/v1/text-to-speech" and seen[0].headers["authorization"] == "Bearer K"
+    assert json.loads(seen[0].content) == {"text": "Naka nga def?", "language": "wo", "output_format": "wav", "exaggeration": 0.2,
+                                           "temperature": 0.1, "cfg_weight": 0.5, "seed": 0}
 
 
-def test_the_other_field_name_is_tried_when_the_first_is_rejected_and_then_remembered():
-    bodies = []
-
-    def handler(request):
-        body = json.loads(request.content)
-        bodies.append(body)
-        return httpx.Response(200, content=b"RIFFaudio") if "text" in body else httpx.Response(422, json={"detail": "text required"})
-    s = speaker(handler)
-    assert s.speak("x") == b"WAV:RIFFaudio" and len(bodies) == 2
-    s.speak("y")
-    assert len(bodies) == 3 and "text" in bodies[-1]
+def test_the_tuning_values_can_be_changed(monkeypatch):
+    monkeypatch.setenv("SOYNADE_TTS_EXAGGERATION", "0.5")
+    monkeypatch.setenv("SOYNADE_TTS_TEMPERATURE", "0.3")
+    monkeypatch.setenv("SOYNADE_TTS_CFG", "0.7")
+    monkeypatch.setenv("SOYNADE_TTS_SEED", "42")
+    body = speaker(lambda r: httpx.Response(200, content=b"RIFFx")).request_body("x")
+    assert (body["exaggeration"], body["temperature"], body["cfg_weight"], body["seed"]) == (0.5, 0.3, 0.7, 42)
 
 
 def test_json_answers_with_base64_or_a_url_are_understood():
@@ -59,14 +56,6 @@ def test_json_answers_with_base64_or_a_url_are_understood():
     assert speaker(handler).speak("x") == b"WAV:RIFFfromurl"
     with pytest.raises(SoynadeError, match="no audio I recognise"):
         speaker(lambda r: httpx.Response(200, json={"hello": 1})).speak("x")
-
-
-def test_a_voice_and_model_can_be_chosen(monkeypatch):
-    monkeypatch.setenv("SOYNADE_TTS_MODEL", "oolel-voices-v2")
-    monkeypatch.setenv("SOYNADE_TTS_VOICE", "amadou")
-    seen = []
-    speaker(lambda r: seen.append(json.loads(r.content)) or httpx.Response(200, content=b"RIFFx")).speak("x")
-    assert seen[0] == {"model": "oolel-voices-v2", "input": "x", "voice": "amadou"}
 
 
 LAUNCH = httpx.Response(400, json={"error": {"message": "Only text output is supported during launch."}})
