@@ -24,8 +24,13 @@ def main() -> None:
     serve.add_argument("--port", type=int, default=8000)
     serve.add_argument("--data", default="data/users", help="Where each person's folder and conversation are kept.")
     args = parser.parse_args()
+    import logging
+
     import uvicorn
 
+    logging.basicConfig(level=os.environ.get("WAXAL_LOG", "INFO").upper(), format="%(asctime)s %(levelname)s %(message)s",
+                        datefmt="%H:%M:%S")
+    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per HTTP request adds nothing here
     from . import certs
     certs.trust_system_certificates()  # a company proxy re-signs HTTPS (models, Meta)
     from .server import create_app, token_from_env

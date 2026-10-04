@@ -1,6 +1,10 @@
 """The agent's UI for a voice channel: it only collects what Claude says, in writing."""
 
+import logging
+
 from coding_agent.ui import UI
+
+log = logging.getLogger("waxal.agent")
 
 
 class VoiceUI(UI):
@@ -30,19 +34,32 @@ class VoiceUI(UI):
     def assistant_end(self) -> None:
         text = "".join(self._chunks).strip()
         if text:
+            log.info("   the agent says: %s", text[:300])
             self.reply = text  # the last non-empty response is the answer (earlier ones are 'let me look')
         self._chunks = []
+
+    def thinking(self) -> None:
+        log.info("   the agent is thinking...")
+
+    def tool_start(self, name: str) -> None:
+        log.info("   tool: %s", name)
+
+    def tool_result(self, name: str, arguments: str, ok: bool, summary: str) -> None:
+        log.log(logging.INFO if ok else logging.WARNING, "   tool %s(%s) -> %s: %s", name, arguments[:200],
+                "ok" if ok else "FAILED", summary[:200])
 
     def message(self, text: str) -> None:
         if text.startswith("[error]"):
             self.errors.append(text.removeprefix("[error]").strip())
 
     def error(self, text: str) -> None:
+        log.error("   agent error: %s", text)
         self.errors.append(text)
 
     # questions to the person: sent as part of the reply, answered by the next voice note
     def panel(self, title: str, lines=(), tone: str = "change") -> None:
         if tone == "question" and title.strip():  # ask_human shows its question as a panel, then waits for the answer
+            log.info("   the agent asks the person: %s", title.strip())
             self.questions.append(title.strip())
 
     def confirm(self, question: str, choices: tuple[str, ...] = ("yes", "no")) -> str:

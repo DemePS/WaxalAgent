@@ -1,6 +1,8 @@
 """The whole turn: Wolof speech -> Wolof text -> English -> the agent -> English -> Wolof -> Wolof speech."""
 
+import logging
 import os
+import time
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -10,6 +12,7 @@ from .stt.base import Listener
 from .text import chunks, speakable
 from .tts.base import Speaker, SpeechUnavailable
 
+log = logging.getLogger("waxal.turn")
 SPEECH_LIMIT = 450  # Soynade's text-to-speech refuses more than 500 characters per call
 NOT_HEARD = "I did not hear anything. Please try again."  # translated like every reply: no Wolof is written by hand here
 
@@ -38,12 +41,16 @@ class Pipeline:
     def from_audio(self, user_id: str, recording: bytes) -> TurnResult:
         """A recording in any common format (browser webm, WhatsApp ogg...)."""
         wav = audio.to_wav(recording)
+        log.info("[1] heard a recording: %.1f s of audio", len(wav) / 32000)
         if not self.direct:
             return self.from_wolof(user_id, self.listener.transcribe(wav))
         result = TurnResult()
         if os.environ.get("WAXAL_SHOW_WOLOF") in ("1", "on", "yes"):
             result.wolof = self.listener.transcribe(wav).strip()
+            log.info("[2] Wolof heard: %s", result.wolof)
+        started = time.monotonic()
         result.english = self.listener.translate_audio(wav).strip()
+        log.info("[2] speech -> English (%.1f s): %s", time.monotonic() - started, result.english)
         return self._answer(user_id, result)
 
     def transcribe(self, recording: bytes) -> str:
@@ -53,8 +60,10 @@ class Pipeline:
     def from_wolof(self, user_id: str, wolof: str) -> TurnResult:
         """Wolof text (typed, or already transcribed)."""
         result = TurnResult(wolof=wolof.strip())
+        log.info("[1] Wolof: %s", result.wolof)
         if result.wolof:
             result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
+            log.info("[2] Wolof -> English: %s", result.english)
         return self._answer(user_id, result)
 
     def _answer(self, user_id: str, result: TurnResult) -> TurnResult:
@@ -65,15 +74,23 @@ class Pipeline:
             result.audio_wav = self._speak([result.reply_wolof], result)
             result.notes.append("nothing was heard")
             return result
+        log.info("[3] asking the agent: %s", result.english)
+        started = time.monotonic()
         result.reply_english, notes = self.agent.ask(user_id, result.english)
         result.notes += notes
+        log.info("[3] agent answered (%.1f s): %s", time.monotonic() - started, result.reply_english)
+        for note in notes:
+            log.warning("[3] note: %s", note)
         spoken = speakable(result.reply_english)
         if not spoken:
             result.notes.append("the agent gave no answer")
             return result
         parts = [self.translator.translate(s, "en", "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
+        log.info("[4] English -> Wolof: %s", result.reply_wolof)
+        started = time.monotonic()
         result.audio_wav = self._speak(parts, result)
+        log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))
         return result
 
     def _speak(self, parts: list[str], result: TurnResult) -> bytes:
