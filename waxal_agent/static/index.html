@@ -22,6 +22,11 @@
   .label { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:8px; }
   .label:first-child { margin-top:0; } .turn p { margin:2px 0 0; white-space:pre-wrap; }
   .only { display:block; margin:10px 0 0; color:var(--muted); font-size:.92rem; } .only input { margin-right:6px; }
+  #files { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:0 0 16px; }
+  #files h2 { font-size:1rem; margin:0 0 6px; } #files ul { list-style:none; margin:8px 0 0; padding:0; }
+  #files li { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:4px 0; border-top:1px solid var(--line); }
+  #files li span.size { color:var(--muted); font-size:.85rem; margin-left:6px; } #files .empty { color:var(--muted); font-size:.92rem; margin:6px 0 0; }
+  #drop.over { outline:2px dashed var(--accent); }
   .note { color:var(--danger); font-size:.9rem; } audio { width:100%; margin-top:10px; } #status { color:var(--muted); min-height:1.4em; }
 </style>
 </head>
@@ -33,6 +38,13 @@
   <label class="only"><input type="checkbox" id="only"> Transcribe only: just show what was heard (no translation, no agent)</label>
   <form id="typed"><input type="text" id="line" placeholder="or type Wolof here" autocomplete="off"><button class="small">Send</button></form>
   <div id="status" role="status"></div>
+  <section id="files" hidden>
+    <h2>My files</h2>
+    <div id="drop"><input type="file" id="pick" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xlsm,.csv,.txt,.md,.json">
+      <span class="empty">or drop files here: the agent reads them from your folder.</span></div>
+    <ul id="filelist"></ul>
+    <div id="filestatus" class="note" role="status"></div>
+  </section>
   <div id="turns"></div>
 </main>
 <script>
@@ -77,6 +89,38 @@ async function send(path, body, type) {
     if (data.reply_wolof) addVoice(div, data.reply_wolof);
   } catch (e) { statusEl.textContent = e.message; } finally { talk.disabled = false; }
 }
+
+const filesBox = document.getElementById('files'), fileList = document.getElementById('filelist'), fileStatus = document.getElementById('filestatus');
+function renderFiles(files) {
+  fileList.replaceChildren(...files.map(f => { const li = document.createElement('li');
+    const label = document.createElement('span'); label.textContent = f.name;
+    const size = document.createElement('span'); size.className = 'size'; size.textContent = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB'; label.append(size);
+    const del = document.createElement('button'); del.className = 'small'; del.type = 'button'; del.textContent = 'Delete';
+    del.onclick = async () => { const r = await fetch('/api/files?name=' + encodeURIComponent(f.name), { method: 'DELETE', headers: headers() });
+      const d = await r.json().catch(() => ({})); r.ok ? renderFiles(d.files) : fileStatus.textContent = d.detail || `Error ${r.status}`; };
+    li.append(label, del); return li; }));
+}
+async function loadFiles() {
+  try { const r = await fetch('/api/files', { headers: headers() }); const d = await r.json();
+    if (d.enabled) { filesBox.hidden = false; renderFiles(d.files); } } catch { /* the list is a convenience */ }
+}
+async function uploadFiles(list) {
+  fileStatus.textContent = '';
+  for (const file of list) {
+    fileStatus.style.color = 'var(--muted)'; fileStatus.textContent = `Uploading ${file.name}…`;
+    const r = await fetch('/api/files?name=' + encodeURIComponent(file.name), { method: 'POST', headers: headers({ 'content-type': 'application/octet-stream' }), body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { fileStatus.style.color = 'var(--danger)'; fileStatus.textContent = `${file.name}: ${d.detail || 'Error ' + r.status}`; return; }
+    renderFiles(d.files);
+  }
+  fileStatus.textContent = '';
+}
+document.getElementById('pick').addEventListener('change', e => { uploadFiles([...e.target.files]); e.target.value = ''; });
+const drop = document.getElementById('drop');
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => uploadFiles([...e.dataTransfer.files]));
+loadFiles();
 
 async function start() {
   if (recorder) return;
