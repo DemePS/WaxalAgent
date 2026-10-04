@@ -8,17 +8,21 @@ NAMES = ("fake", "soynade-asr", "soynade")
 
 
 def build_speaker(soynade_client=None) -> Speaker:
-    """WAXAL_TTS picks the voice: soynade (default: not offered by their API yet) or huggingface (MMS Wolof, HF_TOKEN)."""
+    """WAXAL_TTS picks the voice: soynade (default: their API does not offer it yet), oolel-demo (Oolel-Voices through
+    Soynade's public demo Space), or huggingface (MMS Wolof, HF_TOKEN)."""
     import os
     choice = (os.environ.get("WAXAL_TTS") or "soynade").lower()
     if choice == "huggingface":
         from .tts.huggingface_api import HuggingFaceSpeaker
         return HuggingFaceSpeaker()
+    if choice in ("oolel-demo", "oolel-voices"):
+        from .tts.gradio_space import GradioSpeaker
+        return GradioSpeaker()
     if choice == "soynade":
         from .soynade_api import SoynadeClient
         from .tts.soynade_api import SoynadeSpeaker
         return SoynadeSpeaker(soynade_client or SoynadeClient())
-    raise SystemExit(f"Unknown WAXAL_TTS {choice!r}: use soynade or huggingface.")
+    raise SystemExit(f"Unknown WAXAL_TTS {choice!r}: use soynade, huggingface or oolel-demo.")
 
 
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:

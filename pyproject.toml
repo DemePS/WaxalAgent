@@ -12,6 +12,10 @@ dependencies = [
     "httpx>=0.27",   # WhatsApp Cloud API calls
 ]
 
+[project.optional-dependencies]
+# Oolel-Voices through Soynade's public demo Space (WAXAL_TTS=oolel-demo): only a web client, no model
+demo = ["gradio_client>=1.0"]
+
 [project.scripts]
 waxal-agent = "waxal_agent.cli:main"
 
