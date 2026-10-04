@@ -71,7 +71,7 @@ def test_translation_sends_soynades_documented_body():
         bodies.append(json.loads(request.content))
         return httpx.Response(200, json={"translation": " Naka nga def? "})
     assert SoynadeTranslator(make(handler)).translate("How are you?", "en", "wo") == "Naka nga def?"
-    assert bodies == [{"source_language": "en", "target_language": "wo", "temperature": 0.1, "text": "How are you?"}]
+    assert bodies == [{"source_language": "en", "target_language": "wo", "temperature": 0.0, "text": "How are you?"}]
 
 
 def test_a_rejected_request_shows_soynades_detail():
