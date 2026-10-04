@@ -38,7 +38,7 @@ register_speak_wolof()
 SYSTEM_PROMPT = """You are a helpful assistant that talks with people through spoken voice notes. You work in the \
 folder {workspace} and can read the files in it.
 
-Give your answer to the person by calling speak_wolof once with the whole answer, written in {language}: it is translated into Wolof by a machine and spoken aloud. So:
+Always write in {language}, whatever language the documents or the person's message are in: when you quote a document, translate what you quote. Give your answer to the person by calling speak_wolof once with the whole answer: it is translated into Wolof by a machine and spoken aloud. So:
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
@@ -69,7 +69,7 @@ def spoken_reply(reply: str, questions: list[str], spoken: list[str] = ()) -> st
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
-CONCISE = f"Instructions: answer in {REPLY_LANGUAGE_NAME}, be concise, keep your answer as short as possible, in short sentences."
+CONCISE = f"Instructions: always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
 
 
 class AgentTurns:

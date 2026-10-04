@@ -37,6 +37,12 @@ def main() -> None:
     engines = args.engines or ("soynade" if os.environ.get("SOYNADE_API_KEY") else "fake")
     print(f"Engines: {engines}" + (" (stand-ins: no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY)" if engines == "fake" else ""),
           file=sys.stderr)
+    from .language import DOCUMENT_LANGUAGE, REPLY_LANGUAGE
+    print(f"Replies forced into: {REPLY_LANGUAGE}; documents in: {DOCUMENT_LANGUAGE} (the source language of the translation to Wolof)",
+          file=sys.stderr)
+    if REPLY_LANGUAGE not in (DOCUMENT_LANGUAGE, "wo"):
+        print(f"Warning: replies are written in {REPLY_LANGUAGE} but translated as if they were {DOCUMENT_LANGUAGE}: set "
+              "WAXAL_REPLY_LANGUAGE and WAXAL_DOCUMENT_LANGUAGE to the same language unless that is what you want.", file=sys.stderr)
     pipeline = build_pipeline(engines, args.data)
     bot = None
     if args.whatsapp:

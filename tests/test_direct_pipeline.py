@@ -64,3 +64,14 @@ def test_a_listener_without_the_direct_route_keeps_the_two_step_path():
     agent = StubAgent()
     result = make(FakeListener("naka"), agent).from_audio("u", b"rec")
     assert agent.asked == [("u", "[en] naka")] and result.wolof == "naka"
+
+
+def test_the_document_language_is_the_source_of_the_translation_to_wolof(monkeypatch):
+    from waxal_agent import pipeline
+    monkeypatch.setattr(pipeline, "TRANSLATION_SOURCE", "pt")
+    translator = FakeTranslator()
+    p = pipeline.Pipeline.__new__(pipeline.Pipeline)
+    p.translator, p.speaker = translator, FakeSpeaker()
+    p.agent = type("A", (), {"ask": lambda self, u, e: ("Le total est 642.", [])})()
+    p._answer("u", pipeline.TurnResult(english="total?"))
+    assert translator.calls[-1] == ("Le total est 642.", "pt", "wo")
