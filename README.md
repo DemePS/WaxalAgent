@@ -34,6 +34,14 @@ from other machines.
 `docker compose up --build` runs the server in a container (test page on localhost), and `docs/SANDBOX.md` walks through the
 real models and a WhatsApp test with Meta's free test number and a temporary public address. Start there.
 
+## Soynade's hosted API (no model to host)
+
+Soynade offers a hosted, OpenAI-compatible API (`https://api.soynade.ai/openai/v1`, key in `SOYNADE_API_KEY`). **Speech
+recognition is wired** (`stt/soynade_api.py`, model `oolel-speech-v1`, from Soynade's quickstart): try it on a Wolof
+recording with `uv run python scripts/check_api.py recording.wav`. Translation and speech output through the API are **not
+wired yet**: they wait for the corresponding pages of Soynade's reference. Until then a full turn needs the model-based
+engines below. Everything you say or hear goes to Soynade when you use the API: say so in your terms.
+
 ## The Wolof models (try them on your PC)
 
 ```bash
