@@ -41,8 +41,9 @@ created in their console), called directly over HTTPS: no chat client, no model 
 
 | Stage | Route and model | Status |
 |---|---|---|
-| Wolof speech -> text | `POST /v1/audio/transcriptions`, `oolel-speech-v1` | multipart upload (file, model); worked live through an earlier route |
-| Wolof <-> English | `POST /v1/translations`, `oolel-speech-v1` | JSON; the field names are not in what I could read, so a few likely shapes are tried until one is accepted |
+| **Wolof speech -> English, one call** | `POST /v1/audio/translations` | **exact** (Soynade's reference): multipart `file`, `source_language=wo`, `target_language=en`, `response_format=json`, `temperature`. This is the default for voice notes: recognition and incoming translation in one call (`WAXAL_DIRECT=off` for the two-step path, `WAXAL_SHOW_WOLOF=1` to also show the Wolof heard, one more call) |
+| Wolof speech -> Wolof text | `POST /v1/audio/transcriptions`, `oolel-speech-v1` | multipart upload (file, model); used by "Transcribe only" and for typed-text turns |
+| English -> Wolof text (the reply) | `POST /v1/translations`, `oolel-speech-v1` | JSON; field names not in what I could read: likely shapes (`text` / `input` with `source_language` / `target_language`) are tried until one is accepted |
 | Wolof text -> speech | `POST /v1/text-to-speech`, Oolel-Voices, default voice | **exact** (from Soynade's reference): JSON `{text, language: "wo", output_format: "wav", exaggeration, temperature, cfg_weight, seed}`; the answer is the WAV file |
 
 For recognition and translation the request fields come from no page I could read, so a rejected shape shows **Soynade's own error message**: send it to me
@@ -50,7 +51,8 @@ For recognition and translation the request fields come from no page I could rea
 
 ```bash
 export SOYNADE_API_KEY=...
-uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> text
+uv run python scripts/check_api.py understand recording.wav    # Wolof speech -> English (one call)
+uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
 uv run python scripts/check_api.py translate en wo "Hello"     # then: translate wo en "..."
 uv run python scripts/check_api.py speak "Naka nga def?"       # writes speech.wav: play it
 uv run waxal-agent serve --engines soynade                     # the whole turn, on the test page

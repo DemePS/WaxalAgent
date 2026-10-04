@@ -1,5 +1,6 @@
 """The whole turn: Wolof speech -> Wolof text -> English -> the agent -> English -> Wolof -> Wolof speech."""
 
+import os
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -29,10 +30,20 @@ class TurnResult:
 class Pipeline:
     def __init__(self, listener: Listener, translator: Translator, speaker: Speaker, agent: Agent) -> None:
         self.listener, self.translator, self.speaker, self.agent = listener, translator, speaker, agent
+        # A listener that can turn Wolof speech straight into English (one call) does, unless WAXAL_DIRECT=off.
+        # WAXAL_SHOW_WOLOF=1 also transcribes the Wolof (one more call) to show what was heard.
+        self.direct = hasattr(listener, "translate_audio") and (os.environ.get("WAXAL_DIRECT") or "on").lower() not in ("off", "0", "no")
 
     def from_audio(self, user_id: str, recording: bytes) -> TurnResult:
         """A recording in any common format (browser webm, WhatsApp ogg...)."""
-        return self.from_wolof(user_id, self.listener.transcribe(audio.to_wav(recording)))
+        wav = audio.to_wav(recording)
+        if not self.direct:
+            return self.from_wolof(user_id, self.listener.transcribe(wav))
+        result = TurnResult()
+        if os.environ.get("WAXAL_SHOW_WOLOF") in ("1", "on", "yes"):
+            result.wolof = self.listener.transcribe(wav).strip()
+        result.english = self.listener.translate_audio(wav).strip()
+        return self._answer(user_id, result)
 
     def transcribe(self, recording: bytes) -> str:
         """Only listen: what was said, in Wolof (no translation, no agent)."""
@@ -41,13 +52,18 @@ class Pipeline:
     def from_wolof(self, user_id: str, wolof: str) -> TurnResult:
         """Wolof text (typed, or already transcribed)."""
         result = TurnResult(wolof=wolof.strip())
-        if not result.wolof:
+        if result.wolof:
+            result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
+        return self._answer(user_id, result)
+
+    def _answer(self, user_id: str, result: TurnResult) -> TurnResult:
+        """From the English the agent received: the agent's answer, in Wolof, spoken."""
+        if not result.english:
             result.reply_english = NOT_HEARD
             result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
             result.audio_wav = self._speak([result.reply_wolof], result)
             result.notes.append("nothing was heard")
             return result
-        result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
         result.reply_english, notes = self.agent.ask(user_id, result.english)
         result.notes += notes
         spoken = speakable(result.reply_english)

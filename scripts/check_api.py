@@ -1,6 +1,7 @@
 """Try Soynade's hosted API one step at a time (needs SOYNADE_API_KEY).
 
     uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
+    uv run python scripts/check_api.py understand recording.wav    # Wolof speech -> English text (one call)
     uv run python scripts/check_api.py translate en wo "Hello"     # text translation (en wo / wo en)
     uv run python scripts/check_api.py speak "Nanga def"           # Wolof text -> speech.wav (WAXAL_TTS=huggingface: HF_TOKEN)
 """
@@ -31,6 +32,10 @@ def main(argv: list[str]) -> None:
         from waxal_agent.stt.soynade_api import SoynadeListener
         wav = audio.to_wav(Path(args[0]).read_bytes())
         print("heard:", repr(timed(lambda: SoynadeListener(client).transcribe(wav))))
+    elif command == "understand" and args:
+        from waxal_agent.stt.soynade_api import SoynadeListener
+        wav = audio.to_wav(Path(args[0]).read_bytes())
+        print("english:", repr(timed(lambda: SoynadeListener(client).translate_audio(wav))))
     elif command == "translate" and len(args) == 3:
         from waxal_agent.mt.soynade_api import SoynadeTranslator
         mt = SoynadeTranslator(client)

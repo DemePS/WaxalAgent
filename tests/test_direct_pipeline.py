@@ -1,0 +1,66 @@
+import pytest
+
+from tests.test_pipeline import StubAgent
+from waxal_agent.mt.fake import FakeTranslator
+from waxal_agent.pipeline import Pipeline
+from waxal_agent.stt.fake import FakeListener
+from waxal_agent.tts.fake import FakeSpeaker
+
+
+class DirectListener(FakeListener):
+    """A listener that can also turn Wolof speech straight into English."""
+
+    def __init__(self, english="give me the total", wolof="jox ma total bi"):
+        super().__init__(wolof)
+        self.english, self.direct_calls = english, 0
+
+    def translate_audio(self, wav, source="wo", target="en"):
+        self.direct_calls += 1
+        return self.english
+
+
+@pytest.fixture(autouse=True)
+def no_ffmpeg(monkeypatch):
+    monkeypatch.setattr("waxal_agent.pipeline.audio.to_wav", lambda data: b"WAV")
+    monkeypatch.delenv("WAXAL_DIRECT", raising=False)
+    monkeypatch.delenv("WAXAL_SHOW_WOLOF", raising=False)
+
+
+def make(listener, agent=None):
+    return Pipeline(listener, FakeTranslator(), FakeSpeaker(), agent or StubAgent())
+
+
+def test_a_voice_note_is_understood_in_one_call_without_translating_the_incoming_side():
+    listener, agent = DirectListener(), StubAgent()
+    translator = FakeTranslator()
+    result = Pipeline(listener, translator, FakeSpeaker(), agent).from_audio("u", b"rec")
+    assert agent.asked == [("u", "give me the total")] and listener.direct_calls == 1
+    assert listener.heard == []                                        # no separate recognition call
+    assert all(call[1:] == ("en", "wo") for call in translator.calls)  # only the reply is translated (en -> wo)
+    assert result.english == "give me the total" and result.wolof == "" and result.audio_wav
+
+
+def test_the_wolof_can_be_shown_at_the_price_of_one_more_call(monkeypatch):
+    monkeypatch.setenv("WAXAL_SHOW_WOLOF", "1")
+    listener = DirectListener()
+    result = make(listener).from_audio("u", b"rec")
+    assert result.wolof == "jox ma total bi" and listener.heard == [3]
+
+
+def test_direct_mode_can_be_switched_off(monkeypatch):
+    monkeypatch.setenv("WAXAL_DIRECT", "off")
+    listener, agent = DirectListener(), StubAgent()
+    Pipeline(listener, FakeTranslator(), FakeSpeaker(), agent).from_audio("u", b"rec")
+    assert listener.direct_calls == 0 and agent.asked == [("u", "[en] jox ma total bi")]
+
+
+def test_silence_in_direct_mode_is_answered_without_the_agent():
+    agent = StubAgent()
+    result = make(DirectListener(english="  "), agent).from_audio("u", b"rec")
+    assert agent.asked == [] and result.notes == ["nothing was heard"]
+
+
+def test_a_listener_without_the_direct_route_keeps_the_two_step_path():
+    agent = StubAgent()
+    result = make(FakeListener("naka"), agent).from_audio("u", b"rec")
+    assert agent.asked == [("u", "[en] naka")] and result.wolof == "naka"

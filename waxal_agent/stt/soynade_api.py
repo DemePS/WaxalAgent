@@ -1,7 +1,8 @@
-"""Wolof speech recognition: POST /v1/audio/transcriptions on Soynade's API (model oolel-speech-v1).
+"""Wolof speech on Soynade's API (model oolel-speech-v1), two routes:
 
-Sent as a multipart upload, the way a transcription route is usually shaped: file = the WAV, model = the model; with
-SOYNADE_ASR_LANGUAGE (e.g. wo) a `language` field too. The answer's `text` is the transcription.
+  transcribe:      POST /v1/audio/transcriptions   Wolof speech -> Wolof text (multipart: file, model; optionally language)
+  translate_audio: POST /v1/audio/translations     Wolof speech -> English text in ONE call; multipart exactly as in
+                   Soynade's reference: file, source_language "wo", target_language, response_format "json", temperature
 """
 
 import os
@@ -22,3 +23,10 @@ class SoynadeListener:
             data["language"] = os.environ["SOYNADE_ASR_LANGUAGE"]
         response = self.client.post_file("audio/transcriptions", {"file": ("audio.wav", wav, "audio/wav")}, data)
         return text_in(response, ("text", "transcription", "transcript"))
+
+    def translate_audio(self, wav: bytes, source: str = "wo", target: str = "en") -> str:
+        """Wolof speech straight to text in another language (one call instead of recognition then translation)."""
+        data = {"source_language": source, "target_language": target, "response_format": "json",
+                "temperature": os.environ.get("SOYNADE_TRANSLATE_TEMPERATURE") or "0.1"}
+        response = self.client.post_file("audio/translations", {"file": ("audio.wav", wav, "audio/wav")}, data)
+        return text_in(response, ("text", "translation", "translated_text"))

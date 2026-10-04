@@ -3,10 +3,10 @@
 The documentation lists the route, not its fields, so the JSON body is tried in the shapes such a route most likely has,
 until the server accepts one (HTTP 400 / 422 means "not this shape"); the first accepted shape is remembered:
 
-    {"model", "input", "source_language", "target_language"}      language codes "wo" / "en"
-    {"model", "text", "source_language", "target_language"}
-    {"model", "input", "source", "target"}
+    {"model", "text", "source_language", "target_language"}      language codes "wo" / "en"
+    {"model", "input", "source_language", "target_language"}
     {"model", "text", "source", "target"}
+    {"model", "input", "source", "target"}
     {"model", "input", "target_language"}
 
 When none is accepted the error shows what Soynade said for each: send it to me and the shape is corrected.
@@ -18,8 +18,9 @@ import os
 from ..soynade_api import SoynadeClient, SoynadeError, text_in
 
 DEFAULT_MODEL = "oolel-speech-v1"
-SHAPES = (("input", "source_language", "target_language"), ("text", "source_language", "target_language"),
-          ("input", "source", "target"), ("text", "source", "target"), ("input", None, "target_language"))
+# source_language / target_language are the names Soynade's audio translation route uses: tried first.
+SHAPES = (("text", "source_language", "target_language"), ("input", "source_language", "target_language"),
+          ("text", "source", "target"), ("input", "source", "target"), ("input", None, "target_language"))
 
 
 class SoynadeTranslator:

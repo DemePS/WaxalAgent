@@ -46,6 +46,22 @@ def test_a_language_can_be_sent(monkeypatch):
     assert b'name="language"' in seen[0].content
 
 
+# --- speech translation: POST /audio/translations, as in Soynade's reference
+
+def test_speech_goes_straight_to_english_in_one_call():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, json={"text": " How are you? "})
+    assert SoynadeListener(make(handler)).translate_audio(b"RIFFwav") == "How are you?"
+    request = seen[0]
+    assert str(request.url) == "https://api.example/v1/audio/translations" and request.headers["content-type"].startswith("multipart/form-data")
+    for field in (b'name="source_language"', b"wo", b'name="target_language"', b"en", b'name="response_format"', b"json",
+                  b'name="temperature"', b"0.1", b'name="file"', b"RIFFwav"):
+        assert field in request.content
+
+
 # --- translation: POST /translations, JSON, the shape is found
 
 def test_translation_finds_the_request_shape_the_server_accepts_and_remembers_it():
@@ -60,7 +76,7 @@ def test_translation_finds_the_request_shape_the_server_accepts_and_remembers_it
     mt = SoynadeTranslator(make(handler))
     assert mt.translate("How are you?", "en", "wo") == "Naka nga def?"
     tried = len(bodies)
-    assert tried > 1 and bodies[-1] == {"model": "oolel-speech-v1", "input": "How are you?", "source": "en", "target": "wo"}
+    assert tried > 1 and bodies[-1] == {"model": "oolel-speech-v1", "text": "How are you?", "source": "en", "target": "wo"}
     mt.translate("Thanks", "en", "wo")
     assert len(bodies) == tried + 1                            # the accepted shape is used at once
 
