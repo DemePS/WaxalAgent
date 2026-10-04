@@ -88,7 +88,7 @@ class Pipeline:
             return result
         parts = [self.translator.translate(s, REPLY_LANGUAGE, "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
-        log.info("[4] English -> Wolof: %s", result.reply_wolof)
+        log.info("[4] reply -> Wolof: %s", result.reply_wolof)
         started = time.monotonic()
         result.audio_wav = self._speak(parts, result)
         log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))

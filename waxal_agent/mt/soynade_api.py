@@ -5,9 +5,13 @@ Request (JSON, no model field):
 The answer's text is read from translation / translated_text / text / output (or a plain-text body).
 """
 
+import logging
 import os
 
 from ..soynade_api import SoynadeClient, text_in
+
+
+log = logging.getLogger("waxal.translate")
 
 
 class SoynadeTranslator:
@@ -20,4 +24,9 @@ class SoynadeTranslator:
             return text
         body = {"source_language": source, "target_language": target, "temperature": self.temperature, "text": text}
         response = self.client.post_json("translations", body)
-        return text_in(response, ("translation", "translated_text", "text", "output"))
+        log.debug("translations answer (%s -> %s): %s", source, target, response.text[:500])
+        result = text_in(response, ("translation", "translated_text", "text", "output"))
+        if result == text.strip() and len(text) > 3:
+            log.warning("Soynade returned the text unchanged (%s -> %s): that pair may not be supported. Answer: %s",
+                        source, target, response.text[:300])
+        return result
