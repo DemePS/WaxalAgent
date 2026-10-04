@@ -2,11 +2,11 @@
 
 The request is the one in Soynade's reference:
 
-    {"text": ..., "language": "wo", "output_format": "wav", "temperature": 0}
+    {"text": ..., "language": "wo", "output_format": "wav"}
 
-and the answer is the WAV file itself. Optional tuning, sent only when set in the environment: SOYNADE_TTS_EXAGGERATION,
-SOYNADE_TTS_CFG, SOYNADE_TTS_SEED (the same seed gives the same voice for the same text); SOYNADE_TTS_TEMPERATURE (default 0)
-and SOYNADE_TTS_LANGUAGE (default wo). The result is converted to 16 kHz mono WAV (ffmpeg).
+and the answer is the WAV file itself. Optional tuning, sent only when set in the environment: SOYNADE_TTS_TEMPERATURE (0 for
+the most stable voice), SOYNADE_TTS_EXAGGERATION, SOYNADE_TTS_CFG, SOYNADE_TTS_SEED (the same seed gives the same voice for
+the same text); SOYNADE_TTS_LANGUAGE (default wo). The result is converted to 16 kHz mono WAV (ffmpeg).
 While Soynade says audio output is not offered ("Only text output is supported during launch") or switched off
 (SOYNADE_TTS=off), a reply stays text only and the API is not asked again for ten minutes.
 """
@@ -35,10 +35,9 @@ class SoynadeSpeaker:
 
     def request_body(self, text: str) -> dict:
         env = os.environ
-        body = {"text": text, "language": env.get("SOYNADE_TTS_LANGUAGE") or "wo", "output_format": "wav",
-                "temperature": float(env.get("SOYNADE_TTS_TEMPERATURE") or 0)}
-        for key, name, kind in (("exaggeration", "SOYNADE_TTS_EXAGGERATION", float), ("cfg_weight", "SOYNADE_TTS_CFG", float),
-                                ("seed", "SOYNADE_TTS_SEED", int)):
+        body = {"text": text, "language": env.get("SOYNADE_TTS_LANGUAGE") or "wo", "output_format": "wav"}
+        for key, name, kind in (("temperature", "SOYNADE_TTS_TEMPERATURE", float), ("exaggeration", "SOYNADE_TTS_EXAGGERATION", float),
+                                ("cfg_weight", "SOYNADE_TTS_CFG", float), ("seed", "SOYNADE_TTS_SEED", int)):
             if env.get(name):  # only when asked for: the reference's minimal request does not send them
                 body[key] = kind(env[name])
         return body
