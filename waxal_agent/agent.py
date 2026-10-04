@@ -25,6 +25,7 @@ Your English reply is translated into Wolof by a machine and then spoken aloud. 
 - Spell out what matters once; do not repeat yourself.
 - If you need a file you cannot find, say so and say what you would need.
 - You cannot change files or ask for approvals in this channel. Say clearly when something needs more than reading.
+- If you need to ask the person something, use ask_human with one short question, then end your turn: they answer by voice in their next message.
 The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
 request is unclear, ask one short question instead of guessing."""
 
@@ -35,6 +36,15 @@ def user_folder(root: Path, user_id: str) -> Path:
     folder = root / name
     folder.mkdir(parents=True, exist_ok=True)
     return folder
+
+
+def spoken_reply(reply: str, questions: list[str]) -> str:
+    """The reply, plus the questions the agent asked the person (unless the reply already says them)."""
+    parts = [reply.strip()] if reply.strip() else []
+    for question in questions:
+        if question and question not in reply:
+            parts.append(question)
+    return "\n".join(parts)
 
 
 class AgentTurns:
@@ -62,4 +72,4 @@ class AgentTurns:
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:
             notes.append(failure)
-        return ui.reply, notes
+        return spoken_reply(ui.reply, ui.questions), notes

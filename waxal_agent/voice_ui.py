@@ -6,14 +6,18 @@ from coding_agent.ui import UI
 class VoiceUI(UI):
     """Collects Claude's final reply (the text of the last response of a turn).
 
-    Nothing can be approved by voice: a question the agent cannot do without gets "no", and the turn's
-    notes say so. The tool set given to the agent should not need approvals in the first place.
+    Nothing can be approved by voice: an approval gets "no", and the turn's notes say so. The tool set given to the
+    agent should not need approvals in the first place.
+
+    A question the agent asks the person (its ask_human tool) is part of the answer: it is collected in `questions`,
+    spoken like any reply, and the person answers it with their next voice note (the conversation is resumed).
     """
 
     def __init__(self) -> None:
         self.reply = ""
         self.errors: list[str] = []
         self.refused: list[str] = []
+        self.questions: list[str] = []
         self._chunks: list[str] = []
 
     # what the agent says
@@ -36,11 +40,16 @@ class VoiceUI(UI):
     def error(self, text: str) -> None:
         self.errors.append(text)
 
-    # questions: never answered by voice
+    # questions to the person: sent as part of the reply, answered by the next voice note
+    def panel(self, title: str, lines=(), tone: str = "change") -> None:
+        if tone == "question" and title.strip():  # ask_human shows its question as a panel, then waits for the answer
+            self.questions.append(title.strip())
+
     def confirm(self, question: str, choices: tuple[str, ...] = ("yes", "no")) -> str:
         self.refused.append(question.strip())
         return "no" if "no" in choices else choices[-1]
 
     def ask_text(self, prompt: str, multiline: bool = False) -> str:
-        self.refused.append(prompt.strip())
-        return ""
+        # Nobody can answer now: the question is already in `questions` and will be spoken.
+        return ("(The question has been sent to the person by voice; they will answer in their next message. "
+                "Do not wait: finish your turn now, briefly.)")
