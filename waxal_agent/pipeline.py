@@ -6,7 +6,7 @@ from typing import Protocol
 from . import audio
 from .mt.base import Translator
 from .stt.base import Listener
-from .text import sentences, speakable
+from .text import chunks, speakable
 from .tts.base import Speaker
 
 NOT_HEARD = "I did not hear anything. Please try again."  # translated like every reply: no Wolof is written by hand here
@@ -47,14 +47,14 @@ class Pipeline:
             result.audio_wav = self.speaker.speak(result.reply_wolof)
             result.notes.append("nothing was heard")
             return result
-        result.english = " ".join(self.translator.translate(s, "wo", "en") for s in sentences(result.wolof))
+        result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
         result.reply_english, notes = self.agent.ask(user_id, result.english)
         result.notes += notes
         spoken = speakable(result.reply_english)
         if not spoken:
             result.notes.append("the agent gave no answer")
             return result
-        parts = [self.translator.translate(s, "en", "wo") for s in sentences(spoken)]
+        parts = [self.translator.translate(s, "en", "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
         result.audio_wav = _join_wavs([self.speaker.speak(p) for p in parts])
         return result

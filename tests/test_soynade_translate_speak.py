@@ -11,7 +11,7 @@ from waxal_agent.tts.soynade_api import SoynadeSpeaker
 
 
 def client(handler):
-    return SoynadeClient("KEY", "https://api.example/v1", httpx.Client(transport=httpx.MockTransport(handler)), backoff=0, retries=0)
+    return SoynadeClient("KEY", "https://api.example/v1", httpx.Client(transport=httpx.MockTransport(handler)), backoff=0, min_interval=0, retries=0)
 
 
 def chat_answer(text):

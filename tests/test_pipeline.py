@@ -33,7 +33,7 @@ def test_a_wolof_text_goes_to_english_then_back():
     result = pipeline.from_wolof("alice", "jox ma total bi.")
     assert agent.asked == [("alice", "give me the total.")]
     assert result.wolof == "jox ma total bi." and result.english == "give me the total."
-    assert result.reply_wolof == "[wo] Total is 642 euros. [wo] The invoice is paid."
+    assert result.reply_wolof == "[wo] Total is 642 euros. The invoice is paid."   # one translation call, not one per sentence
     assert seconds(result.audio_wav) > 0.5 and result.notes == []
 
 

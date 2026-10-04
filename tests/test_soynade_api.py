@@ -10,7 +10,7 @@ from waxal_agent.stt.soynade_api import PROMPT, SoynadeListener
 
 def client(handler, **options):
     return SoynadeClient("KEY", "https://api.example/v1", httpx.Client(transport=httpx.MockTransport(handler)),
-                         backoff=0, **options)
+                         backoff=0, min_interval=0, **options)
 
 
 def answer(text):
