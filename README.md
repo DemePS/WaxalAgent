@@ -36,7 +36,7 @@ real models and a WhatsApp test with Meta's free test number and a temporary pub
 
 ## Soynade's hosted API (nothing is hosted here)
 
-All speech and translation go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
+Translation is done by Claude by default (`WAXAL_MT=soynade` uses Soynade's translation route instead). Speech recognition and the Wolof voice go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
 created in their console), called directly over HTTPS: no chat client, no model downloaded or run here.
 
 | Stage | Route and model | Status |
