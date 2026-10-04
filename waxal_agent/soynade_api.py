@@ -91,6 +91,7 @@ class SoynadeClient:
                 if response.status_code == 200:
                     return response
                 last = f"HTTP {response.status_code}: {_detail(response)}"
+                log.warning("%s refused: %s (Retry-After: %s)", path, last[:300], response.headers.get("retry-after", "not given"))
                 if response.status_code >= 500:  # their server is failing: retry a little, never for minutes (the turn waits)
                     server_errors += 1
                     if server_errors > self.server_retries:
