@@ -1,9 +1,11 @@
 """Wolof speech by ElevenLabs: POST /v1/text-to-speech/{voice_id}?output_format=pcm_16000 (raw 16-bit 16 kHz mono, wrapped as WAV).
 
-    {"text": ..., "model_id": "eleven_v4"}        # what their reference example sends (voice George, model eleven_v4)
+    {"text": ..., "model_id": "eleven_v4", "language_code": "fr"}
 
+eleven_v4 does not accept Wolof ("does not support language_code 'wo'") and read Wolof text with English pronunciation when no
+language was given. French is the closest it has: the Wolof spelling is French-like. It is a stand-in, not a Wolof voice.
 ELEVENLABS_VOICE_ID (any voice of your account; default: George, the voice of their example), ELEVENLABS_TTS_MODEL (default
-eleven_v4), ELEVENLABS_TTS_LANGUAGE (e.g. wo: sent as language_code; by default the field is left out, as in their example),
+eleven_v4), ELEVENLABS_TTS_LANGUAGE (default fr; empty: the field is left out and the language is guessed),
 ELEVENLABS_TTS_FORMAT (default pcm_16000; an mp3_... format is converted with ffmpeg).
 """
 
@@ -22,7 +24,7 @@ class ElevenLabsSpeaker:
         env = os.environ
         self.voice = env.get("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE
         self.model = env.get("ELEVENLABS_TTS_MODEL") or "eleven_v4"
-        self.language = env.get("ELEVENLABS_TTS_LANGUAGE", "")
+        self.language = env.get("ELEVENLABS_TTS_LANGUAGE", "fr")  # no Wolof in eleven_v4: French reads Wolof spelling best
         self.format = env.get("ELEVENLABS_TTS_FORMAT") or "pcm_16000"
 
     def request_body(self, text: str) -> dict:

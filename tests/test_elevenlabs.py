@@ -25,7 +25,7 @@ def test_speech_is_posted_to_the_voice_and_raw_pcm_becomes_a_wav():
     wav = ElevenLabsSpeaker(client(handler)).speak("Nanga def?")
     request = seen[0]
     assert request.url.path == "/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb" and request.url.params["output_format"] == "pcm_16000"
-    assert request.headers["xi-api-key"] == "KEY" and json.loads(request.content) == {"text": "Nanga def?", "model_id": "eleven_v4"}
+    assert request.headers["xi-api-key"] == "KEY" and json.loads(request.content) == {"text": "Nanga def?", "model_id": "eleven_v4", "language_code": "fr"}
     with wave.open(io.BytesIO(wav)) as w:
         assert (w.getnchannels(), w.getsampwidth(), w.getframerate(), w.getnframes()) == (1, 2, 16000, 160)
 
@@ -33,9 +33,9 @@ def test_speech_is_posted_to_the_voice_and_raw_pcm_becomes_a_wav():
 def test_voice_model_and_language_can_be_changed(monkeypatch):
     monkeypatch.setenv("ELEVENLABS_VOICE_ID", "V2")
     monkeypatch.setenv("ELEVENLABS_TTS_MODEL", "eleven_v4_turbo")
-    monkeypatch.setenv("ELEVENLABS_TTS_LANGUAGE", "wo")
+    monkeypatch.setenv("ELEVENLABS_TTS_LANGUAGE", "")
     speaker = ElevenLabsSpeaker(client(lambda r: httpx.Response(200, content=b"\0\0")))
-    assert speaker.voice == "V2" and speaker.request_body("x") == {"text": "x", "model_id": "eleven_v4_turbo", "language_code": "wo"}
+    assert speaker.voice == "V2" and speaker.request_body("x") == {"text": "x", "model_id": "eleven_v4_turbo"}
 
 
 def test_an_mp3_format_is_converted_to_wav(monkeypatch):
