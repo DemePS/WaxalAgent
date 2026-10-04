@@ -16,6 +16,8 @@ def pick(client: SoynadeClient, kind: str, variable: str) -> str:
     found = [m for m in models if any(w in m.lower() for w in want) and not any(a in m.lower() for a in avoid)]
     if len(found) == 1:
         return found[0]
+    if not found and len(models) == 1:  # a single multimodal model (e.g. oolel-speech-v1) does everything: use it
+        return models[0]
     reason = "none fits" if not found else f"several fit ({', '.join(found)})"
     raise SoynadeError(f"Which Soynade model is for {kind}? {reason}. Models available to your key: "
                        f"{', '.join(models) or '(none)'}. Set {variable} to the right id.")

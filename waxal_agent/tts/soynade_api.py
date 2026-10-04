@@ -1,11 +1,12 @@
 """Wolof speech through Soynade's hosted API.
 
-Two routes are tried, both from the OpenAI-compatible API family their base URL belongs to (neither is confirmed by
-Soynade's pages that I could read: `scripts/check_api.py speak "..."` shows what actually works for your key):
-  1. POST {base}/audio/speech  {model, input, voice, response_format}   -> audio bytes
-  2. POST {base}/chat/completions with modalities ["text","audio"] and audio {voice, format}  -> message.audio.data (base64)
-Settings: SOYNADE_TTS_MODEL (else found in the model list), SOYNADE_TTS_VOICE (default "default"), SOYNADE_TTS_ROUTE
-("speech" or "chat" to force one; default: speech first, chat when that route does not exist).
+Two routes, both from the OpenAI-compatible API family their base URL belongs to (neither is confirmed by Soynade's pages
+that I could read: `scripts/check_api.py speak "..."` shows what actually works for your key):
+  chat:   POST {base}/chat/completions with modalities ["text","audio"] and audio {voice, format} -> message.audio.data
+  speech: POST {base}/audio/speech {model, input, voice, response_format}                      -> audio bytes
+When the model is a speech chat model (its id contains "speech", like oolel-speech-v1, the only model some keys list),
+chat is tried first; otherwise speech first. Settings: SOYNADE_TTS_MODEL (else the model list), SOYNADE_TTS_VOICE (default
+"default"), SOYNADE_TTS_ROUTE ("speech" or "chat" to force one; the other is tried when a route does not exist (404/405)).
 The result is always converted to 16 kHz mono WAV (ffmpeg), whatever Soynade returns.
 """
 
@@ -31,7 +32,10 @@ class SoynadeSpeaker:
         return self._model
 
     def speak(self, text: str) -> bytes:
-        routes = [self.route] if self.route in ("speech", "chat") else ["speech", "chat"]
+        if self.route in ("speech", "chat"):
+            routes = [self.route]
+        else:
+            routes = ["chat", "speech"] if "speech" in self.model.lower() else ["speech", "chat"]
         for index, route in enumerate(routes):
             try:
                 raw = self._speech(text) if route == "speech" else self._chat(text)

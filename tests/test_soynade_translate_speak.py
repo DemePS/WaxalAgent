@@ -104,3 +104,22 @@ def test_the_full_soynade_engine_set_shares_one_client(monkeypatch):
     monkeypatch.setenv("SOYNADE_API_KEY", "k")
     listener, translator, speaker = build_engines("soynade")
     assert listener.client is translator.client is speaker.client
+
+
+def test_a_key_with_a_single_model_uses_it_for_translation_and_speech(monkeypatch):
+    calls = []
+
+    def handler(request):
+        if request.url.path.endswith("/models"):
+            return httpx.Response(200, json={"data": [{"id": "oolel-speech-v1"}]})
+        body = json.loads(request.content)
+        calls.append((request.url.path, body))
+        if "audio" in body.get("modalities", []):
+            return httpx.Response(200, json={"choices": [{"message": {"audio": {"data": base64.b64encode(b"A").decode()}}}]})
+        return chat_answer("Nanga def")
+    c = client(handler)
+    assert SoynadeTranslator(c).translate("How are you?", "en", "wo") == "Nanga def"
+    monkeypatch.setattr("waxal_agent.tts.soynade_api.audio.to_wav", lambda raw: b"WAV:" + raw)
+    assert SoynadeSpeaker(c).speak("Nanga def") == b"WAV:A"
+    assert all(body["model"] == "oolel-speech-v1" for path, body in calls)
+    assert calls[1][0].endswith("/chat/completions")           # a speech chat model is asked on the chat route first

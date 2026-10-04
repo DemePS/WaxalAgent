@@ -2,7 +2,8 @@
 
 The system prompt "Translate to Wolof the following sentence" is the one Soynade's own translation pipeline uses; the
 opposite direction is its mirror (unverified: SOYNADE_MT_PROMPT_WO_EN / SOYNADE_MT_PROMPT_EN_WO change them).
-The model is SOYNADE_MT_MODEL, else the one found in the model list (see `scripts/check_api.py models`).
+The model is SOYNADE_MT_MODEL, else the one found in the model list (see `scripts/check_api.py models`); when the key lists a
+single model (oolel-speech-v1) that one is used: it is a chat model, so it is asked with text only.
 """
 
 import os
