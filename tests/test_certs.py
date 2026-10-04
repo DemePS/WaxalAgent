@@ -10,5 +10,5 @@ def test_system_certificates_are_requested_from_codeagent(monkeypatch):
 def test_a_certificate_failure_gets_an_explanation_and_other_errors_do_not():
     failure = Exception("[SSL: CERTIFICATE_VERIFY_FAILED] certificate verify failed: unable to get local issuer certificate")
     help_text = certs.explain(failure)
-    assert help_text and "SSL_CERT_FILE" in help_text and "HF_HUB_OFFLINE" in help_text
+    assert help_text and "SSL_CERT_FILE" in help_text
     assert certs.explain(Exception("connection reset")) is None

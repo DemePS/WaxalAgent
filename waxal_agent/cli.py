@@ -17,7 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="waxal-agent", description="A Wolof voice agent.")
     sub = parser.add_subparsers(dest="command", required=True)
     serve = sub.add_parser("serve", help="Start the web server with the test page.")
-    serve.add_argument("--engines", default="fake", help="fake (no models), soynade (Soynade Research's Wolof models) or wolof (Whisper + NLLB + SpeechT5); the real ones need: uv sync --extra models.")
+    serve.add_argument("--engines", default="fake", help="fake (stand-ins), soynade-asr (Soynade's hosted speech recognition, SOYNADE_API_KEY) or soynade (all through Soynade's API: not complete yet).")
     serve.add_argument("--whatsapp", action="store_true",
                        help="Answer WhatsApp voice notes at /webhook (needs the WHATSAPP_* variables, see README).")
     serve.add_argument("--host", default="127.0.0.1")

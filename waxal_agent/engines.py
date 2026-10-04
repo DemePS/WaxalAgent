@@ -1,35 +1,27 @@
-"""The three speech/translation engines of a real run, by name."""
+"""The three engines of a run (listening, translating, speaking), by name. Only hosted APIs and stand-ins: no model runs here."""
 
 from .mt.base import Translator
 from .stt.base import Listener
 from .tts.base import Speaker
 
-NAMES = ("fake", "soynade-asr", "soynade", "wolof")
+NAMES = ("fake", "soynade-asr", "soynade")
 
 
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
-    """fake: stand-ins. soynade-asr: Soynade's hosted speech recognition, the rest stand-ins (try the microphone).
-    soynade: Soynade Research's Wolof-HuBERT-CTC, Oolel and Oolel-Voices.
-    wolof: the first set: a Whisper Wolof model, NLLB-200 and SpeechT5."""
+    """fake: stand-ins for everything (no key needed).
+    soynade-asr: Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins.
+    soynade: everything through Soynade's API: recognition is wired, translation and speech output are not yet."""
     if name == "fake":
         from .mt.fake import FakeTranslator
         from .stt.fake import FakeListener
         from .tts.fake import FakeSpeaker
         return FakeListener(default="Nanga def?"), FakeTranslator(), FakeSpeaker()
-    if name == "soynade-asr":  # recognition through Soynade's API (SOYNADE_API_KEY); translation and voice are stand-ins
+    if name == "soynade-asr":
         from .mt.fake import FakeTranslator
         from .stt.soynade_api import SoynadeListener
         from .tts.fake import FakeSpeaker
         return SoynadeListener(), FakeTranslator(), FakeSpeaker()
     if name == "soynade":
-        from .mt.oolel import Oolel
-        from .stt.whisper_wolof import SOYNADE_MODEL, WhisperWolof
-        from .tts.oolel_voices import OolelVoices
-        import os
-        return WhisperWolof(os.environ.get("WAXAL_ASR_MODEL") or SOYNADE_MODEL), Oolel(), OolelVoices()
-    if name == "wolof":
-        from .mt.nllb import Nllb
-        from .stt.whisper_wolof import WhisperWolof
-        from .tts.speecht5_wolof import SpeechT5Wolof
-        return WhisperWolof(), Nllb(), SpeechT5Wolof()
+        raise SystemExit("--engines soynade needs Soynade's translation and speech-output API, which are not wired yet "
+                         "(only speech recognition is): use --engines soynade-asr to try recognition, or fake.")
     raise SystemExit(f"Unknown engines {name!r}: use one of {', '.join(NAMES)}.")

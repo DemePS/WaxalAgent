@@ -1,14 +1,11 @@
-# Sandbox: `docker compose up --build`, then open http://localhost:8000
-#   WAXAL_ENGINES=fake   (default) stand-ins for the models: tests the plumbing and the agent
-#   WAXAL_ENGINES=soynade  the real Wolof models (first start downloads them: several GB)
+# `docker compose up --build`, then open http://localhost:8000/?token=<WAXAL_TOKEN>
+#   WAXAL_ENGINES=fake         (default) stand-ins: tests the plumbing and the agent
+#   WAXAL_ENGINES=soynade-asr  Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins
 # WhatsApp: add `--profile tunnel` for a public https address (see docs/SANDBOX.md).
 
 services:
   waxal:
-    build:
-      context: .
-      args:
-        WITH_MODELS: ${WITH_MODELS:-1}
+    build: .
     env_file:
       - path: .env
         required: false
@@ -20,7 +17,6 @@ services:
     ports:
       - "127.0.0.1:8000:8000"   # your PC only; the tunnel service is what makes it public
     volumes:
-      - models:/models
       - ./data:/app/data
     restart: unless-stopped
 
@@ -32,6 +28,3 @@ services:
     command: tunnel --no-autoupdate --url http://waxal:8000
     depends_on:
       - waxal
-
-volumes:
-  models:

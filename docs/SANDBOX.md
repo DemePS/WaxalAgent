@@ -3,13 +3,13 @@
 A way to try WaxalAgent for real on your PC, in a container that cannot touch the rest of your system, and then from
 your own WhatsApp. Two stages: first the web test page, then WhatsApp.
 
-Nothing here could be run where this code was written (no Docker daemon, no model hub, no WhatsApp): the compose file
+Nothing here could be run where this code was written (no Docker daemon, no Soynade or WhatsApp access): the compose file
 was checked for syntax and the server was smoke-tested outside Docker with stand-in engines. Expect to fix small things on
 the first run, and tell me what the logs say.
 
 ## Stage 1: the test page (Docker)
 
-Needs Docker Desktop (WSL 2 on Windows) and about 10 GB of disk for the image and the models.
+Needs Docker Desktop (WSL 2 on Windows). The image is small: no models.
 
 ```bash
 git clone https://github.com/DemePS/WaxalAgent && cd WaxalAgent
@@ -21,22 +21,18 @@ Open **http://localhost:8000/?token=<your WAXAL_TOKEN>**. Type some text in the 
 translator only tags it) and send. You should see the agent's English answer come back. This checks the container, ffmpeg,
 your Claude access and the agent. From another terminal: `uv run python scripts/smoke.py http://localhost:8000 <token>`.
 
-Then the real models:
+Then Soynade's speech recognition (hosted: nothing to download):
 
 ```bash
-# put a short recording of the voice you want (a .wav, 5 to 15 s of clear speech) at data/voice.wav
-# in .env:  WAXAL_ENGINES=soynade
+# in .env:  SOYNADE_API_KEY=...   WAXAL_ENGINES=soynade-asr
 docker compose up --build
 ```
 
-The first request downloads the models into the `models` volume (several GB: be patient; the log shows it). Then use the
-**Hold to talk** button: Wolof speech in, Wolof speech out. A turn takes seconds on a CPU, and the first request is slow (the models load).
-`docker compose run --rm waxal python scripts/check_models.py soynade` prints what each stage produces and how long it takes.
+Open the page, tick **Transcribe only**, hold **Hold to talk** and speak Wolof: you see what Soynade's recogniser heard.
+Translation and speech output through their API are not wired yet, so the rest of a turn still uses stand-ins.
 
 - **Company proxy that re-signs HTTPS:** before `docker compose up --build`, copy the company root certificate (a `.crt`
   or `.pem` from IT) into `certs/`: the image installs it, so downloads trust it.
-- **No GPU needed.** The image installs the CPU build of torch. `WITH_MODELS=0` builds a small image without the model
-  libraries (stand-ins only).
 - Conversations are kept in `./data`; delete it to start over. Audio is not stored.
 
 ## Stage 2: your own WhatsApp (Meta's test number)
@@ -79,8 +75,8 @@ For a permanent setup use a system user's permanent token and your own business 
 |---|---|
 | Compose says `WAXAL_TOKEN` is missing | set it in `.env` |
 | The page answers but "notes" mention `ANTHROPIC_API_KEY` | the key is missing or wrong in `.env` |
-| Download fails with `CERTIFICATE_VERIFY_FAILED` | a proxy re-signs HTTPS: put the company root certificate in `certs/` and rebuild |
+| A call fails with `CERTIFICATE_VERIFY_FAILED` | a proxy re-signs HTTPS: put the company root certificate in `certs/` and rebuild |
 | Meta refuses the webhook address | the tunnel address changed, or `WHATSAPP_VERIFY_TOKEN` differs from the console |
 | Messages arrive but no answer comes | your number is not in `WAXAL_ALLOWED` (digits only, country code first); check the log |
 | 403 on the webhook in the log | `WHATSAPP_APP_SECRET` is wrong: the signature check fails |
-| A voice note gets an apology | look for the error in `docker compose logs waxal` (ffmpeg, model, or Claude) |
+| A voice note gets an apology | look for the error in `docker compose logs waxal` (ffmpeg, Soynade, or Claude) |
