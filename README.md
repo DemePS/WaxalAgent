@@ -87,7 +87,7 @@ Uses Meta's WhatsApp Business Cloud API: a business account, a phone number, and
    | `WAXAL_ALLOWED` | phone numbers allowed to use the agent, digits, comma-separated. **Empty: nobody** |
    | `WHATSAPP_GRAPH_VERSION` | optional, default `v21.0` (check Meta's current version) |
 
-3. `uv run waxal-agent serve --engines wolof --whatsapp --host 0.0.0.0`, then in Meta's settings set the callback URL to
+3. `uv run waxal-agent serve --engines soynade --whatsapp --host 0.0.0.0`, then in Meta's settings set the callback URL to
    `https://<your address>/webhook` with the verify token, and subscribe to the `messages` field.
 4. Send a voice note from an allowed number. You get a voice note back and the same words as text.
 
