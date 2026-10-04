@@ -29,6 +29,11 @@ back) can be checked before the real models exist. ffmpeg must be installed (it 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
 
+## Live sandbox (Docker + your own WhatsApp)
+
+`docker compose up --build` runs the server in a container (test page on localhost), and `docs/SANDBOX.md` walks through the
+real models and a WhatsApp test with Meta's free test number and a temporary public address. Start there.
+
 ## The Wolof models (try them on your PC)
 
 ```bash

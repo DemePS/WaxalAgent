@@ -14,7 +14,7 @@ dependencies = [
 
 [project.optional-dependencies]
 # The real Wolof models (milestone 2): heavy, installed only where they run.
-models = ["torch", "transformers", "soundfile", "numpy"]
+models = ["torch", "transformers", "soundfile", "numpy", "sentencepiece", "protobuf"]
 
 [project.scripts]
 waxal-agent = "waxal_agent.cli:main"

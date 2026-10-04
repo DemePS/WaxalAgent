@@ -48,3 +48,13 @@ def test_questions_are_refused_and_reported(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "send", send)
     reply, notes = AgentTurns(tmp_path / "users").ask("u", "delete it")
     assert reply == "" and "Claude is unreachable" in notes and any("Delete costs.xlsx?" in n for n in notes)
+
+
+def test_a_missing_claude_setup_becomes_a_note_not_a_crash(tmp_path, monkeypatch):
+    monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
+
+    def send(text):
+        raise KeyError("ANTHROPIC_FOUNDRY_ENDPOINT")
+    monkeypatch.setattr(session, "send", send)
+    reply, notes = AgentTurns(tmp_path / "users").ask("u", "hello")
+    assert reply == "" and any("ANTHROPIC_API_KEY" in n for n in notes)

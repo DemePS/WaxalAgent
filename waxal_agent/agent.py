@@ -49,11 +49,17 @@ class AgentTurns:
         """(the agent's reply in English, notes about what went wrong or could not be done)."""
         folder = user_folder(self.root, user_id)
         ui = VoiceUI()
+        failure = None
         with self._lock:
             session.open_project(folder, ui=ui, tools=self.tools, system_prompt=SYSTEM_PROMPT, resume=True)
             try:
                 session.send(english)
+            except Exception as e:  # e.g. no Claude access configured at all
+                from coding_agent.errors import describe
+                failure = describe(e) or f"{type(e).__name__}: {e}"
             finally:
                 session.close()
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
+        if failure:
+            notes.append(failure)
         return ui.reply, notes
