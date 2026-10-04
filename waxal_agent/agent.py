@@ -9,7 +9,7 @@ import re
 import threading
 from pathlib import Path
 
-from coding_agent import session
+from coding_agent import session, state
 
 from .language import REPLY_LANGUAGE_NAME
 from .voice_ui import VoiceUI
@@ -80,6 +80,14 @@ class AgentTurns:
         self.root = Path(root)
         self.tools = TOOLS if tools is None else tools
         self._lock = threading.Lock()
+        self._running = False
+
+    def stop(self) -> bool:
+        """Stop the turn that is running (it ends at the next model call and is rolled back). False when none is running."""
+        if not self._running:
+            return False
+        session.stop()
+        return True
 
     def ask(self, user_id: str, english: str) -> tuple[str, list[str]]:
         """(the agent's reply in English, notes about what went wrong or could not be done)."""
@@ -88,12 +96,15 @@ class AgentTurns:
         failure = None
         with self._lock:
             session.open_project(folder, ui=ui, tools=self.tools, system_prompt=SYSTEM_PROMPT, resume=True)
+            state.stop_requested = False  # a stop asked for earlier must not abort this turn
+            self._running = True
             try:
                 session.send(f"{english}\n\n{CONCISE}")
             except Exception as e:  # e.g. no Claude access configured at all
                 from coding_agent.errors import describe
                 failure = describe(e) or f"{type(e).__name__}: {e}"
             finally:
+                self._running = False
                 session.close()
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:

@@ -93,6 +93,12 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             wav, notes = await run_in_threadpool(pipeline.speak_text, body.text)
             return {"audio": base64.b64encode(wav).decode("ascii"), "audio_type": "audio/wav", "notes": notes}
 
+        @app.post("/api/stop")
+        def stop(request: Request):
+            """Stop the agent's running turn (the page's Stop button)."""
+            check(request)
+            return {"stopped": pipeline.stop()}
+
         @app.get("/api/files")
         def list_files(request: Request):
             check(request)
