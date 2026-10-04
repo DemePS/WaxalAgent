@@ -7,8 +7,7 @@ def test_engine_names(monkeypatch):
     monkeypatch.setenv("SOYNADE_API_KEY", "k")
     assert [type(e).__name__ for e in build_engines("fake")] == ["FakeListener", "FakeTranslator", "FakeSpeaker"]
     assert [type(e).__name__ for e in build_engines("soynade-asr")] == ["SoynadeListener", "FakeTranslator", "FakeSpeaker"]
-    with pytest.raises(SystemExit, match="not wired yet"):
-        build_engines("soynade")
+    assert [type(e).__name__ for e in build_engines("soynade")] == ["SoynadeListener", "SoynadeTranslator", "SoynadeSpeaker"]
     with pytest.raises(SystemExit, match="Unknown engines"):
         build_engines("whisper")
 

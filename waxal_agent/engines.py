@@ -7,10 +7,28 @@ from .tts.base import Speaker
 NAMES = ("fake", "soynade-asr", "soynade")
 
 
+def build_speaker(soynade_client=None) -> Speaker:
+    """WAXAL_TTS picks the voice: soynade (default: their API does not offer it yet), oolel-demo (Oolel-Voices through
+    Soynade's public demo Space), or huggingface (MMS Wolof, HF_TOKEN)."""
+    import os
+    choice = (os.environ.get("WAXAL_TTS") or "soynade").lower()
+    if choice == "huggingface":
+        from .tts.huggingface_api import HuggingFaceSpeaker
+        return HuggingFaceSpeaker()
+    if choice in ("oolel-demo", "oolel-voices"):
+        from .tts.gradio_space import GradioSpeaker
+        return GradioSpeaker()
+    if choice == "soynade":
+        from .soynade_api import SoynadeClient
+        from .tts.soynade_api import SoynadeSpeaker
+        return SoynadeSpeaker(soynade_client or SoynadeClient())
+    raise SystemExit(f"Unknown WAXAL_TTS {choice!r}: use soynade, huggingface or oolel-demo.")
+
+
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
     """fake: stand-ins for everything (no key needed).
     soynade-asr: Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins.
-    soynade: everything through Soynade's API: recognition is wired, translation and speech output are not yet."""
+    soynade: everything through Soynade's API: recognition, translation and Wolof speech (scripts/check_api.py checks each route)."""
     if name == "fake":
         from .mt.fake import FakeTranslator
         from .stt.fake import FakeListener
@@ -21,7 +39,11 @@ def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
         from .stt.soynade_api import SoynadeListener
         from .tts.fake import FakeSpeaker
         return SoynadeListener(), FakeTranslator(), FakeSpeaker()
-    if name == "soynade":
-        raise SystemExit("--engines soynade needs Soynade's translation and speech-output API, which are not wired yet "
-                         "(only speech recognition is): use --engines soynade-asr to try recognition, or fake.")
+    if name == "soynade":  # everything through Soynade's API (one client, one key)
+        from .mt.soynade_api import SoynadeTranslator
+        from .soynade_api import SoynadeClient
+        from .stt.soynade_api import SoynadeListener
+        from .tts.soynade_api import SoynadeSpeaker
+        client = SoynadeClient()
+        return SoynadeListener(client), SoynadeTranslator(client), build_speaker(client)
     raise SystemExit(f"Unknown engines {name!r}: use one of {', '.join(NAMES)}.")

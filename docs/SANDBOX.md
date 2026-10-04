@@ -21,15 +21,15 @@ Open **http://localhost:8000/?token=<your WAXAL_TOKEN>**. Type some text in the 
 translator only tags it) and send. You should see the agent's English answer come back. This checks the container, ffmpeg,
 your Claude access and the agent. From another terminal: `uv run python scripts/smoke.py http://localhost:8000 <token>`.
 
-Then Soynade's speech recognition (hosted: nothing to download):
+Then Soynade's hosted API (nothing to download). First find out what your key can do: `uv run python scripts/check_api.py models`.
 
 ```bash
-# in .env:  SOYNADE_API_KEY=...   WAXAL_ENGINES=soynade-asr
+# in .env:  SOYNADE_API_KEY=...   WAXAL_ENGINES=soynade
 docker compose up --build
 ```
 
-Open the page, tick **Transcribe only**, hold **Hold to talk** and speak Wolof: you see what Soynade's recogniser heard.
-Translation and speech output through their API are not wired yet, so the rest of a turn still uses stand-ins.
+Open the page, hold **Hold to talk** and speak Wolof: you get the Wolof heard, the English the agent received, its answer,
+the Wolof answer, and the spoken reply. Tick **Transcribe only** to test recognition alone.
 
 - **Company proxy that re-signs HTTPS:** before `docker compose up --build`, copy the company root certificate (a `.crt`
   or `.pem` from IT) into `certs/`: the image installs it, so downloads trust it.

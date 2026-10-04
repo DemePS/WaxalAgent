@@ -1,6 +1,7 @@
 # `docker compose up --build`, then open http://localhost:8000/?token=<WAXAL_TOKEN>
 #   WAXAL_ENGINES=fake         (default) stand-ins: tests the plumbing and the agent
-#   WAXAL_ENGINES=soynade-asr  Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins
+#   WAXAL_ENGINES=soynade      everything through Soynade's API (SOYNADE_API_KEY)
+#   WAXAL_ENGINES=soynade-asr  only Soynade's speech recognition; translation and voice are stand-ins
 # WhatsApp: add `--profile tunnel` for a public https address (see docs/SANDBOX.md).
 
 services:

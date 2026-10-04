@@ -51,15 +51,30 @@ function show(r) {
   (r.notes || []).forEach(n => add('Note', n, 'note'));
   if (r.audio) { const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`; div.append(a); a.play().catch(() => {}); }
   turns.prepend(div);
+  return div;
+}
+
+// The texts are shown first; the voice is asked for afterwards, so a slow or failing speech service never delays the answer.
+async function addVoice(div, text) {
+  const note = document.createElement('p'); note.className = 'note'; note.textContent = 'Preparing the voice…'; div.append(note);
+  try {
+    const res = await fetch('/api/speak', { method: 'POST', headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify({ text }) });
+    const r = await res.json().catch(() => ({}));
+    if (!res.ok) throw new Error(r.detail || `Error ${res.status}`);
+    if (!r.audio) throw new Error((r.notes || []).join(' ') || 'No voice.');
+    const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`;
+    note.replaceWith(a); a.play().catch(() => {});
+  } catch (e) { note.textContent = 'No voice: ' + e.message; }
 }
 
 async function send(path, body, type) {
   talk.disabled = true; statusEl.textContent = 'Working…';
   try {
-    const res = await fetch(path, { method: 'POST', headers: headers({ 'content-type': type }), body });
+    const res = await fetch(path + (path.includes('?') ? '&' : '?') + 'speak=0', { method: 'POST', headers: headers({ 'content-type': type }), body });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-    show(data); statusEl.textContent = '';
+    const div = show(data); statusEl.textContent = '';
+    if (data.reply_wolof) addVoice(div, data.reply_wolof);
   } catch (e) { statusEl.textContent = e.message; } finally { talk.disabled = false; }
 }
 

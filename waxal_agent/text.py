@@ -36,3 +36,19 @@ def sentences(text: str, limit: int = 200) -> list[str]:
             if part:
                 out.append(part)
     return out
+
+
+def chunks(text: str, limit: int = 600) -> list[str]:
+    """The text in as few pieces as possible, each at most `limit` characters, cut between sentences: one API call per
+    piece (an API with a rate limit is called once per piece, not once per sentence)."""
+    pieces: list[str] = []
+    current = ""
+    for sentence in sentences(text, limit):
+        if current and len(current) + 1 + len(sentence) > limit:
+            pieces.append(current)
+            current = sentence
+        else:
+            current = f"{current} {sentence}".strip()
+    if current:
+        pieces.append(current)
+    return pieces

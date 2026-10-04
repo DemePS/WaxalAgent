@@ -33,7 +33,7 @@ def test_a_wolof_text_goes_to_english_then_back():
     result = pipeline.from_wolof("alice", "jox ma total bi.")
     assert agent.asked == [("alice", "give me the total.")]
     assert result.wolof == "jox ma total bi." and result.english == "give me the total."
-    assert result.reply_wolof == "[wo] Total is 642 euros. [wo] The invoice is paid."
+    assert result.reply_wolof == "[wo] Total is 642 euros. The invoice is paid."   # one translation call, not one per sentence
     assert seconds(result.audio_wav) > 0.5 and result.notes == []
 
 
@@ -63,3 +63,68 @@ def test_a_recording_is_converted_then_listened_to(monkeypatch):
     listener = FakeListener("nanga def")
     result = Pipeline(listener, FakeTranslator(), FakeSpeaker(), StubAgent()).from_audio("u", b"abc")
     assert listener.heard == [6] and result.wolof == "nanga def"
+
+
+def test_long_wolof_replies_are_spoken_in_pieces_of_at_most_450_characters():
+    from waxal_agent.pipeline import Pipeline, TurnResult, SPEECH_LIMIT
+    import io, wave
+    spoken = []
+
+    class Voice:
+        def speak(self, text):
+            spoken.append(text)
+            buf = io.BytesIO()
+            with wave.open(buf, "wb") as w:
+                w.setnchannels(1), w.setsampwidth(2), w.setframerate(16000), w.writeframes(b"\0\0")
+            return buf.getvalue()
+    pipe = Pipeline.__new__(Pipeline)
+    pipe.speaker = Voice()
+    pipe._speak([" ".join(["Nanga def, mangi fi rekk."] * 60)], TurnResult())
+    assert len(spoken) > 1 and all(len(p) <= SPEECH_LIMIT for p in spoken)
+
+
+def test_wavs_with_a_streaming_header_are_joined():
+    import io, struct, wave
+    from waxal_agent.pipeline import _join_wavs
+    pcm = b"\x01\x00" * 100
+    header = b"RIFF" + struct.pack("<L", 0xFFFFFFFF) + b"WAVEfmt " + struct.pack("<LHHLLHH", 16, 1, 1, 16000, 32000, 2, 16)
+    streamed = header + b"data" + struct.pack("<L", 0xFFFFFFFF) + pcm
+    for count in (1, 2):
+        with wave.open(io.BytesIO(_join_wavs([streamed] * count))) as w:
+            assert w.getnframes() == 100 * count and w.getframerate() == 16000
+
+
+def test_a_failing_speech_service_still_delivers_the_texts():
+    from waxal_agent.soynade_api import SoynadeError
+    from waxal_agent.pipeline import Pipeline, TurnResult
+    class Broken:
+        def speak(self, text):
+            raise SoynadeError("HTTP 502: soynade.ai | 502: Bad gateway")
+    pipe = Pipeline.__new__(Pipeline)
+    pipe.speaker = Broken()
+    result = TurnResult()
+    assert pipe._speak(["Nanga def"], result) == b"" and "502" in result.notes[0]
+
+
+def test_an_html_error_page_is_shown_as_its_title():
+    import httpx
+    from waxal_agent.soynade_api import _detail
+    page = "<html><head><title>soynade.ai | 502: Bad gateway</title></head><body>...</body></html>"
+    assert _detail(httpx.Response(502, text=page)) == "soynade.ai | 502: Bad gateway"
+
+
+def test_texts_can_be_delivered_before_the_voice():
+    from waxal_agent.pipeline import Pipeline
+    from waxal_agent.mt.fake import FakeTranslator
+    from waxal_agent.stt.fake import FakeListener
+    from waxal_agent.tts.fake import FakeSpeaker
+
+    class Agent:
+        def ask(self, user, english):
+            return "The total is 642.", []
+    speaker = FakeSpeaker()
+    pipe = Pipeline(FakeListener(default="x"), FakeTranslator(), speaker, Agent())
+    result = pipe.from_wolof("u", "naka", speak=False)
+    assert result.reply_wolof == "[wo] The total is 642." and result.audio_wav == b"" and speaker.spoken == []
+    wav, notes = pipe.speak_text(result.reply_wolof)
+    assert wav and notes == [] and speaker.spoken == ["[wo] The total is 642."]
