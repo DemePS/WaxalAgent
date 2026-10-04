@@ -60,7 +60,7 @@ def test_a_missing_claude_setup_becomes_a_note_not_a_crash(tmp_path, monkeypatch
     assert reply == "" and any("ANTHROPIC_API_KEY" in n for n in notes)
 
 
-def test_a_question_to_the_person_becomes_part_of_the_spoken_reply(tmp_path, monkeypatch):
+def test_a_question_to_the_person_is_spoken_on_its_own(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
 
     def send(text):
@@ -73,11 +73,11 @@ def test_a_question_to_the_person_becomes_part_of_the_spoken_reply(tmp_path, mon
         return True
     monkeypatch.setattr(session, "send", send)
     reply, notes = AgentTurns(tmp_path / "users").ask("u", "what is the total?")
-    assert reply == "I need one detail first.\nWhich invoice do you mean: the March one or the April one?"
+    assert reply == "Which invoice do you mean: the March one or the April one?"
     assert notes == []                                         # a question is not a failure
 
 
-def test_spoken_reply_does_not_repeat_a_question_already_in_the_reply():
+def test_a_question_replaces_the_rest_of_the_reply():
     from waxal_agent.agent import spoken_reply
-    assert spoken_reply("Which one?", ["Which one?"]) == "Which one?"
+    assert spoken_reply("Let me check. Which one?", ["Which one?"]) == "Which one?"
     assert spoken_reply("", ["Which one?"]) == "Which one?" and spoken_reply("Done.", []) == "Done."

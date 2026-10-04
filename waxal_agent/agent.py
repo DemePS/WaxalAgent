@@ -46,12 +46,10 @@ def user_folder(root: Path, user_id: str) -> Path:
 
 
 def spoken_reply(reply: str, questions: list[str]) -> str:
-    """The reply, plus the questions the agent asked the person (unless the reply already says them)."""
-    parts = [reply.strip()] if reply.strip() else []
-    for question in questions:
-        if question and question not in reply:
-            parts.append(question)
-    return "\n".join(parts)
+    """What goes to Soynade and then to the person: the question the agent asked (ask_human) on its own, with nothing
+    else around it; otherwise the agent's reply."""
+    asked = [q.strip() for q in questions if q.strip()]
+    return "\n".join(asked) if asked else reply.strip()
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
