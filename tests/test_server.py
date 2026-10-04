@@ -84,3 +84,11 @@ def test_transcribe_only_returns_just_the_wolof_words(monkeypatch):
 
 def test_the_page_offers_a_transcribe_only_switch():
     assert 'id="only"' in client().get("/").text
+
+
+def test_the_page_gets_the_texts_first_and_the_voice_afterwards():
+    c = client()
+    first = c.post("/api/text?speak=0", json={"text": "naka nga def"}).json()
+    assert first["reply_wolof"] and first["audio"] == ""
+    voice = c.post("/api/speak", json={"text": first["reply_wolof"]}).json()
+    assert voice["audio"] and voice["notes"] == []

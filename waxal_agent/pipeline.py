@@ -40,12 +40,13 @@ class Pipeline:
         # WAXAL_SHOW_WOLOF=1 also transcribes the Wolof (one more call) to show what was heard.
         self.direct = hasattr(listener, "translate_audio") and (os.environ.get("WAXAL_DIRECT") or "on").lower() not in ("off", "0", "no")
 
-    def from_audio(self, user_id: str, recording: bytes) -> TurnResult:
-        """A recording in any common format (browser webm, WhatsApp ogg...)."""
+    def from_audio(self, user_id: str, recording: bytes, speak: bool = True) -> TurnResult:
+        """A recording in any common format (browser webm, WhatsApp ogg...). speak=False: texts only, the voice comes later
+        from speak_text (a slow or failing speech service then never delays the answer)."""
         wav = audio.to_wav(recording)
         log.info("[1] heard a recording: %.1f s of audio", len(wav) / 32000)
         if not self.direct:
-            return self.from_wolof(user_id, self.listener.transcribe(wav))
+            return self.from_wolof(user_id, self.listener.transcribe(wav), speak)
         result = TurnResult()
         if os.environ.get("WAXAL_SHOW_WOLOF") in ("1", "on", "yes"):
             result.wolof = self.listener.transcribe(wav).strip()
@@ -53,27 +54,28 @@ class Pipeline:
         started = time.monotonic()
         result.english = self.listener.translate_audio(wav).strip()
         log.info("[2] speech -> English (%.1f s): %s", time.monotonic() - started, result.english)
-        return self._answer(user_id, result)
+        return self._answer(user_id, result, speak)
 
     def transcribe(self, recording: bytes) -> str:
         """Only listen: what was said, in Wolof (no translation, no agent)."""
         return self.listener.transcribe(audio.to_wav(recording))
 
-    def from_wolof(self, user_id: str, wolof: str) -> TurnResult:
+    def from_wolof(self, user_id: str, wolof: str, speak: bool = True) -> TurnResult:
         """Wolof text (typed, or already transcribed)."""
         result = TurnResult(wolof=wolof.strip())
         log.info("[1] Wolof: %s", result.wolof)
         if result.wolof:
             result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
             log.info("[2] Wolof -> English: %s", result.english)
-        return self._answer(user_id, result)
+        return self._answer(user_id, result, speak)
 
-    def _answer(self, user_id: str, result: TurnResult) -> TurnResult:
+    def _answer(self, user_id: str, result: TurnResult, speak: bool = True) -> TurnResult:
         """From the English the agent received: the agent's answer, in Wolof, spoken."""
         if not result.english:
             result.reply_english = NOT_HEARD
             result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
-            result.audio_wav = self._speak([result.reply_wolof], result)
+            if speak:
+                result.audio_wav = self._speak([result.reply_wolof], result)
             result.notes.append("nothing was heard")
             return result
         log.info("[3] asking the agent: %s", result.english)
@@ -91,10 +93,19 @@ class Pipeline:
             self.translator.translate(s, TRANSLATION_SOURCE, "wo") for s in chunks(spoken)]
         result.reply_wolof = " ".join(parts)
         log.info("[4] reply -> Wolof: %s", result.reply_wolof)
-        started = time.monotonic()
-        result.audio_wav = self._speak(parts, result)
-        log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))
+        if speak:
+            started = time.monotonic()
+            result.audio_wav = self._speak(parts, result)
+            log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))
         return result
+
+    def speak_text(self, wolof: str) -> tuple[bytes, list[str]]:
+        """The voice of a Wolof text, on its own (after the texts were delivered): (WAV, notes; empty WAV when it failed)."""
+        result = TurnResult()
+        started = time.monotonic()
+        wav = self._speak([wolof], result)
+        log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(wav))
+        return wav, result.notes
 
     def _speak(self, parts: list[str], result: TurnResult) -> bytes:
         """The spoken reply; when speech output is not available, the reply stays text only (and says why in the notes)."""

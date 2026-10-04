@@ -153,9 +153,9 @@ class WhatsAppBot:
         kind = message.get("type")
         try:
             if kind == "audio":
-                result = self.pipeline.from_audio(sender, self.client.download_media(message["audio"]["id"]))
+                result = self.pipeline.from_audio(sender, self.client.download_media(message["audio"]["id"]), speak=False)
             elif kind == "text":
-                result = self.pipeline.from_wolof(sender, message["text"]["body"])
+                result = self.pipeline.from_wolof(sender, message["text"]["body"], speak=False)
             else:
                 self._say(sender, ONLY_VOICE_AND_TEXT)
                 return
@@ -166,10 +166,14 @@ class WhatsAppBot:
             log.exception("The turn failed")
             self._say(sender, SORRY)
             return
-        if result.audio_wav:
-            self.client.send_voice(sender, audio.to_ogg_opus(result.audio_wav))
         if result.reply_wolof:
-            self.client.send_text(sender, result.reply_wolof)
+            self.client.send_text(sender, result.reply_wolof)  # the text first: the voice may be slow, or fail
+            try:
+                wav, _ = self.pipeline.speak_text(result.reply_wolof)
+                if wav:
+                    self.client.send_voice(sender, audio.to_ogg_opus(wav))
+            except Exception:
+                log.exception("The voice note could not be made or sent")
 
     def _say(self, to: str, english: str) -> None:
         """A fixed message, translated like every reply (no Wolof is written by hand here)."""

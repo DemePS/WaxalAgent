@@ -111,3 +111,20 @@ def test_an_html_error_page_is_shown_as_its_title():
     from waxal_agent.soynade_api import _detail
     page = "<html><head><title>soynade.ai | 502: Bad gateway</title></head><body>...</body></html>"
     assert _detail(httpx.Response(502, text=page)) == "soynade.ai | 502: Bad gateway"
+
+
+def test_texts_can_be_delivered_before_the_voice():
+    from waxal_agent.pipeline import Pipeline
+    from waxal_agent.mt.fake import FakeTranslator
+    from waxal_agent.stt.fake import FakeListener
+    from waxal_agent.tts.fake import FakeSpeaker
+
+    class Agent:
+        def ask(self, user, english):
+            return "The total is 642.", []
+    speaker = FakeSpeaker()
+    pipe = Pipeline(FakeListener(default="x"), FakeTranslator(), speaker, Agent())
+    result = pipe.from_wolof("u", "naka", speak=False)
+    assert result.reply_wolof == "[wo] The total is 642." and result.audio_wav == b"" and speaker.spoken == []
+    wav, notes = pipe.speak_text(result.reply_wolof)
+    assert wav and notes == [] and speaker.spoken == ["[wo] The total is 642."]

@@ -101,22 +101,22 @@ def test_a_voice_note_gets_a_voice_note_and_a_text_back(wav_as_ogg):
     bot.handle(payload(audio_message()))
     assert listener.heard == [len(b"WAV:OGG-BYTES")]                    # the downloaded recording was what was heard
     kinds = [m["type"] for m in meta.sent]
-    assert kinds == ["audio", "text"] and meta.sent[0]["audio"] == {"id": "UPLOADED1"}
-    assert meta.sent[0]["to"] == "221771234567" and meta.sent[1]["text"]["body"].startswith("[wo]")
+    assert kinds == ["text", "audio"] and meta.sent[1]["audio"] == {"id": "UPLOADED1"}   # the text first, then the voice
+    assert meta.sent[0]["to"] == "221771234567" and meta.sent[0]["text"]["body"].startswith("[wo]")
     assert len(meta.uploads) == 1 and b"OGG:" in meta.uploads[0]
 
 
 def test_a_typed_message_is_answered_too(wav_as_ogg):
     bot, meta = make_bot()
     bot.handle(payload(text_message("jox ma total bi")))
-    assert [m["type"] for m in meta.sent] == ["audio", "text"]
+    assert [m["type"] for m in meta.sent] == ["text", "audio"]
 
 
 def test_the_same_message_delivered_twice_is_answered_once(wav_as_ogg):
     bot, meta = make_bot()
     bot.handle(payload(text_message(id="wamid.same")))
     bot.handle(payload(text_message(id="wamid.same")))
-    assert [m["type"] for m in meta.sent] == ["audio", "text"]
+    assert [m["type"] for m in meta.sent] == ["text", "audio"]
 
 
 def test_a_number_that_is_not_allowed_gets_no_answer(wav_as_ogg):
@@ -178,7 +178,7 @@ def test_webhook_refuses_a_bad_signature_and_accepts_a_good_one(wav_as_ogg):
     assert c.post("/webhook", content=raw, headers={**headers, "x-hub-signature-256": "sha256=00"}).status_code == 403
     assert c.post("/webhook", content=raw).status_code == 403 and meta.sent == []
     assert c.post("/webhook", content=raw, headers=headers).status_code == 200
-    assert [m["type"] for m in meta.sent] == ["audio", "text"]        # the background task ran
+    assert [m["type"] for m in meta.sent] == ["text", "audio"]        # the background task ran
 
 
 def test_a_public_server_can_leave_out_the_test_page():
@@ -192,5 +192,5 @@ def test_a_public_server_can_leave_out_the_test_page():
 def test_the_real_conversions_work_end_to_end():
     bot, meta = make_bot(meta=Meta(recording=tone()))
     bot.handle(payload(audio_message()))
-    assert [m["type"] for m in meta.sent] == ["audio", "text"] and meta.uploads[0][:0] == b""
+    assert [m["type"] for m in meta.sent] == ["text", "audio"] and meta.uploads[0][:0] == b""
     assert b"OggS" in meta.uploads[0]

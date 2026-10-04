@@ -7,6 +7,7 @@ import os
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
+from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
@@ -58,7 +59,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             if len(data) > MAX_RECORDING_BYTES:
                 raise HTTPException(413, "The recording is too long.")
             try:
-                return as_json(pipeline.from_audio(user_of(request), data))
+                return as_json(pipeline.from_audio(user_of(request), data, speak=request.query_params.get("speak") != "0"))
             except AudioError as e:
                 raise HTTPException(400, str(e))
 
@@ -82,7 +83,14 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
         async def text(request: Request, body: TextIn):
             """Wolof typed instead of spoken (for testing without a microphone)."""
             check(request)
-            return as_json(pipeline.from_wolof(user_of(request), body.text))
+            return as_json(pipeline.from_wolof(user_of(request), body.text, speak=request.query_params.get("speak") != "0"))
+
+        @app.post("/api/speak")
+        async def speak(request: Request, body: TextIn):
+            """The voice of a Wolof text (the page asks for it after showing the texts)."""
+            check(request)
+            wav, notes = await run_in_threadpool(pipeline.speak_text, body.text)
+            return {"audio": base64.b64encode(wav).decode("ascii"), "audio_type": "audio/wav", "notes": notes}
 
         @app.get("/")
         def index():
