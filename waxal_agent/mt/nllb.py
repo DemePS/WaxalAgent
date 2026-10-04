@@ -19,6 +19,8 @@ class Nllb:
             if self._loader is not None:
                 self._tokenizer, self._model = self._loader(self.model_id)
             else:
+                from .. import certs
+                certs.trust_system_certificates()  # a company proxy re-signs HTTPS
                 from transformers import AutoModelForSeq2SeqLM, AutoTokenizer
                 self._tokenizer = AutoTokenizer.from_pretrained(self.model_id)
                 self._model = AutoModelForSeq2SeqLM.from_pretrained(self.model_id)

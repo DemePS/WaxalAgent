@@ -22,6 +22,8 @@ class WhisperWolof:
             if self._loader is not None:
                 self._pipe = self._loader(self.model)
             else:
+                from .. import certs
+                certs.trust_system_certificates()  # a company proxy re-signs HTTPS
                 from transformers import pipeline
                 self._pipe = pipeline("automatic-speech-recognition", model=self.model, device=self.device,
                                       chunk_length_s=30)

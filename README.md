@@ -90,3 +90,12 @@ template messages can be sent: this code only ever answers messages, so it stays
 ```bash
 uv run pytest
 ```
+
+## Behind a company proxy
+
+If downloading a model fails with `CERTIFICATE_VERIFY_FAILED`, a proxy on your network re-signs HTTPS with a company
+certificate that Python does not know (your browser does). WaxalAgent turns on the operating system's certificate store
+(through CodeAgent's `truststore`) before any download, so this should just work on a company Windows PC; set
+`AGENT_SYSTEM_CERTS=0` to switch that off. If it still fails: set `SSL_CERT_FILE` and `REQUESTS_CA_BUNDLE` to the company
+root certificate (a `.pem` from IT), or download the models on a machine without the proxy (`huggingface-cli download
+<model>`), copy `~/.cache/huggingface` to this PC and run with `HF_HUB_OFFLINE=1`.

@@ -34,6 +34,8 @@ def main() -> None:
     args = parser.parse_args()
     import uvicorn
 
+    from . import certs
+    certs.trust_system_certificates()  # a company proxy re-signs HTTPS (models, Meta)
     from .server import create_app, token_from_env
     pipeline = build_pipeline(args.engines, args.data)
     bot = None

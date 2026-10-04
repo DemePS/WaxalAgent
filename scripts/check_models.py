@@ -23,6 +23,8 @@ def timed(label, fn):
 
 
 def main() -> None:
+    from waxal_agent import certs
+    certs.trust_system_certificates()  # before anything is downloaded: a company proxy re-signs HTTPS
     from waxal_agent.mt.nllb import Nllb
     from waxal_agent.stt.whisper_wolof import WhisperWolof
     from waxal_agent.tts.speecht5_wolof import SpeechT5Wolof
@@ -42,4 +44,11 @@ def main() -> None:
 
 
 if __name__ == "__main__":
-    main()
+    try:
+        main()
+    except Exception as e:  # a certificate failure gets a plain explanation
+        from waxal_agent import certs
+        help_text = certs.explain(e)
+        if help_text is None:
+            raise
+        sys.exit(f"{e}\n\n{help_text}")

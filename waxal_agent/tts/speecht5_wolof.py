@@ -31,6 +31,8 @@ class SpeechT5Wolof:
             else:
                 if not self.speaker_file:
                     raise RuntimeError("Set WAXAL_TTS_SPEAKER to a .npy file with a speaker embedding (512 numbers).")
+                from .. import certs
+                certs.trust_system_certificates()  # a company proxy re-signs HTTPS
                 import numpy
                 import torch
                 from transformers import SpeechT5ForTextToSpeech, SpeechT5HifiGan, SpeechT5Processor
