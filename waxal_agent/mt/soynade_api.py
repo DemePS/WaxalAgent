@@ -36,7 +36,9 @@ class SoynadeTranslator:
         errors = []
         for shape in shapes:
             text_key, source_key, target_key = shape
-            body = {"model": self.model, text_key: text, target_key: target}
+            body = {text_key: text, target_key: target}
+            if self.model != "none":  # SOYNADE_MT_MODEL=none leaves the model field out
+                body["model"] = self.model
             if source_key:
                 body[source_key] = source
             try:

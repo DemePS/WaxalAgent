@@ -135,7 +135,12 @@ def _detail(response: httpx.Response) -> str:
         data = response.json()
         error = data.get("error", data) if isinstance(data, dict) else data
         if isinstance(error, dict):
+            extra = {k: v for k, v in error.items() if k not in ("message", "detail", "title")}
             error = error.get("message") or error.get("detail") or error.get("title") or error
-        return str(error)[:300]
+            if extra:  # per-field validation errors say which field is wrong
+                error = f"{error} {extra}"
+        elif isinstance(data, dict) and len(data) > 1:
+            error = data
+        return str(error)[:800]
     except ValueError:
-        return response.text[:300]
+        return response.text[:800]
