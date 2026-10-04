@@ -142,3 +142,14 @@ def test_sentences_are_packed_into_as_few_pieces_as_possible():
     assert chunks(text, 600) == [text]
     pieces = chunks(text, 32)
     assert all(len(p) <= 32 for p in pieces) and " ".join(pieces) == text and len(pieces) == 3 and chunks("", 100) == []
+
+
+def test_a_failing_server_is_tried_twice_not_for_minutes():
+    calls = []
+
+    def handler(request):
+        calls.append(1)
+        return httpx.Response(502, text="<html><title>502: Bad gateway</title></html>")
+    with pytest.raises(SoynadeError, match="502: Bad gateway"):
+        make(handler).post_json("text-to-speech", {"text": "x"})
+    assert len(calls) == 2

@@ -45,9 +45,10 @@ class SoynadeClient:
         self.base_url = (base_url or os.environ.get("SOYNADE_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.http = http or httpx.Client(timeout=httpx.Timeout(120, connect=15))
         # Rate limits (HTTP 429) are normal on a small plan: wait as the server says, retry a few times, and never send two
-        # calls closer than min_interval seconds (SOYNADE_MIN_INTERVAL, default 0.5; SOYNADE_RETRIES, default 4).
+        # calls closer than min_interval seconds (SOYNADE_MIN_INTERVAL, default 0.5; SOYNADE_RETRIES, default 4; a 5xx is retried only SOYNADE_SERVER_RETRIES times, default 1).
         self.retries = retries if retries is not None else int(os.environ.get("SOYNADE_RETRIES") or 4)
         self.backoff = backoff
+        self.server_retries = int(os.environ.get("SOYNADE_SERVER_RETRIES") or 1)  # extra tries after a 5xx (not for 429)
         self.min_interval = (min_interval if min_interval is not None
                              else float(os.environ.get("SOYNADE_MIN_INTERVAL") or 0.5))
         self._gate = threading.Lock()
@@ -68,18 +69,25 @@ class SoynadeClient:
             self._last_call = time.monotonic()
 
     def _request(self, method: str, path: str, **options) -> httpx.Response:
-        last, wait = "", 0.0
+        last, wait, server_errors = "", 0.0, 0
         for attempt in range(self.retries + 1):
             self._throttle()
+            started = time.monotonic()
             try:
                 response = self.http.request(method, f"{self.base_url}/{path}", headers={"Authorization": f"Bearer {self.api_key}"},
                                              **options)
             except httpx.TransportError as e:
                 last = f"network error: {type(e).__name__}: {e}"
+                log.warning("%s: %s after %.1f s", path, last, time.monotonic() - started)
             else:
+                log.info("%s -> HTTP %s in %.1f s (attempt %d)", path, response.status_code, time.monotonic() - started, attempt + 1)
                 if response.status_code == 200:
                     return response
                 last = f"HTTP {response.status_code}: {_detail(response)}"
+                if response.status_code >= 500:  # their server is failing: retry a little, never for minutes (the turn waits)
+                    server_errors += 1
+                    if server_errors > self.server_retries:
+                        raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
                 if response.status_code not in RETRY_STATUS:
                     raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
                 wait = _retry_after(response)
