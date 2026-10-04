@@ -39,7 +39,7 @@ def main(argv: list[str]) -> None:
     elif command == "translate" and len(args) == 3:
         from waxal_agent.mt.soynade_api import SoynadeTranslator
         mt = SoynadeTranslator(client)
-        print(f"{mt.model}:", repr(timed(lambda: mt.translate(args[2], args[0], args[1]))))
+        print("translation:", repr(timed(lambda: mt.translate(args[2], args[0], args[1]))))
     elif command == "speak" and args:
         from waxal_agent.engines import build_speaker
         speaker = build_speaker(client)                      # WAXAL_TTS=soynade (default) or huggingface
