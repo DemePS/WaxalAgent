@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import logging
 import os
+import re
 import threading
 import time
 
@@ -143,4 +144,5 @@ def _detail(response: httpx.Response) -> str:
             error = data
         return str(error)[:800]
     except ValueError:
-        return response.text[:800]
+        title = re.search(r"<title>(.*?)</title>", response.text, re.S | re.I)  # an HTML error page (e.g. 502 from the gateway)
+        return " ".join((title.group(1) if title else response.text[:800]).split())

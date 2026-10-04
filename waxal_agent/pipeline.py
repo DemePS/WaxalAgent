@@ -9,6 +9,7 @@ from typing import Protocol
 from . import audio
 from .agent import REPLY_LANGUAGE
 from .mt.base import Translator
+from .soynade_api import SoynadeError
 from .stt.base import Listener
 from .text import chunks, speakable
 from .tts.base import Speaker, SpeechUnavailable
@@ -100,6 +101,10 @@ class Pipeline:
             pieces = [c for p in parts for c in chunks(p, SPEECH_LIMIT)]  # the speech route takes at most 500 characters
             return _join_wavs([self.speaker.speak(c) for c in pieces])
         except SpeechUnavailable as e:
+            result.notes.append(f"No voice: {e}")
+            return b""
+        except SoynadeError as e:  # e.g. Soynade's gateway is down (502): the texts are still delivered
+            log.warning("[5] speech failed: %s", e)
             result.notes.append(f"No voice: {e}")
             return b""
 

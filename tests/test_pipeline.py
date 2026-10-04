@@ -92,3 +92,22 @@ def test_wavs_with_a_streaming_header_are_joined():
     for count in (1, 2):
         with wave.open(io.BytesIO(_join_wavs([streamed] * count))) as w:
             assert w.getnframes() == 100 * count and w.getframerate() == 16000
+
+
+def test_a_failing_speech_service_still_delivers_the_texts():
+    from waxal_agent.soynade_api import SoynadeError
+    from waxal_agent.pipeline import Pipeline, TurnResult
+    class Broken:
+        def speak(self, text):
+            raise SoynadeError("HTTP 502: soynade.ai | 502: Bad gateway")
+    pipe = Pipeline.__new__(Pipeline)
+    pipe.speaker = Broken()
+    result = TurnResult()
+    assert pipe._speak(["Nanga def"], result) == b"" and "502" in result.notes[0]
+
+
+def test_an_html_error_page_is_shown_as_its_title():
+    import httpx
+    from waxal_agent.soynade_api import _detail
+    page = "<html><head><title>soynade.ai | 502: Bad gateway</title></head><body>...</body></html>"
+    assert _detail(httpx.Response(502, text=page)) == "soynade.ai | 502: Bad gateway"
