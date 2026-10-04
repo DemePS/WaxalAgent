@@ -28,8 +28,7 @@ def build_speaker(soynade_client=None) -> Speaker:
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
     """fake: stand-ins for everything (no key needed).
     soynade-asr: Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins.
-    soynade: everything through Soynade's API: recognition, translation and speech output (the last two are my best reading
-    of an OpenAI-compatible API, not confirmed by Soynade's reference: scripts/check_api.py shows what works)."""
+    soynade: everything through Soynade's API: recognition, translation and Wolof speech (scripts/check_api.py checks each route)."""
     if name == "fake":
         from .mt.fake import FakeTranslator
         from .stt.fake import FakeListener
