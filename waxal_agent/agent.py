@@ -53,7 +53,7 @@ def spoken_reply(reply: str, questions: list[str]) -> str:
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
-CONCISE = f"[instructions: answer in {REPLY_LANGUAGE_NAME}, be concise, keep your answer as short as possible, in short sentences]"
+CONCISE = f"Instructions: answer in {REPLY_LANGUAGE_NAME}, be concise, keep your answer as short as possible, in short sentences."
 
 
 class AgentTurns:
