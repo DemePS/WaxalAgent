@@ -52,12 +52,16 @@ class ClaudeTranslator:
 
     @staticmethod
     def _create(client, request):
-        try:
-            return client.messages.create(temperature=0, **request)
-        except Exception as e:  # a model that does not take a temperature: ask again without it
-            if "temperature" not in str(e).lower():
-                raise
-            return client.messages.create(**request)
+        """Temperature 0 and no thinking (a translation needs none, and a model that thinks by default can answer with a
+        thinking block only). A model that refuses one of those settings is asked again without it."""
+        options = [{"temperature": 0, "thinking": {"type": "disabled"}}, {"thinking": {"type": "disabled"}}, {"temperature": 0}, {}]
+        for i, extra in enumerate(options):
+            try:
+                return client.messages.create(**request, **extra)
+            except Exception as e:
+                message = str(e).lower()
+                if i == len(options) - 1 or not ("temperature" in message or "thinking" in message):
+                    raise
 
 
 def _text_of(reply) -> str:
