@@ -45,8 +45,9 @@ def main() -> None:
     from .language import REPLY_LANGUAGE
     print(f"The agent works and answers in: {REPLY_LANGUAGE}" + ("" if REPLY_LANGUAGE == "wo" else " (translated into Wolof by Soynade)"),
           file=sys.stderr)
+    developer = os.environ.get("DEVELOPER_MODE", "").lower() in ("1", "true", "yes", "on")
     s3 = None
-    if os.environ.get("WAXAL_S3_BUCKET") and os.environ.get("DEVELOPER_MODE", "").lower() not in ("1", "true", "yes", "on"):
+    if os.environ.get("WAXAL_S3_BUCKET") and not developer:
         from .s3_sync import S3Documents, s3_client
         s3 = S3Documents(s3_client(), os.environ["WAXAL_S3_BUCKET"], os.environ.get("WAXAL_S3_SHARED_PREFIX") or "documents/",
                          os.environ.get("WAXAL_S3_USERS_PREFIX") or "users/")
@@ -56,7 +57,9 @@ def main() -> None:
         print("DEVELOPER_MODE: S3 is off, the documents are read from the local folders.", file=sys.stderr)
     pipeline = build_pipeline(engines, args.data, args.documents, refresh=s3.refresh_user if s3 else None)
     bot = None
-    if args.whatsapp:
+    if args.whatsapp and developer:
+        print("DEVELOPER_MODE: WhatsApp is off, only the test page is served.", file=sys.stderr)
+    elif args.whatsapp:
         from .whatsapp import WhatsAppBot, WhatsAppClient, WhatsAppConfig
         config = WhatsAppConfig.from_env()
         bot = WhatsAppBot(pipeline, WhatsAppClient(config), config)

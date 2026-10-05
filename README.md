@@ -41,7 +41,7 @@ conversation. Nobody but an administrator adds documents.
   `WAXAL_S3_USER_TTL` seconds, default 60) into `data/users/<phone number>/documents/`, so only active people take disk space.
 - Set `WAXAL_S3_BUCKET`; the credentials are the usual AWS ones (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or a role); `WAXAL_S3_REGION`,
   `WAXAL_S3_ENDPOINT` (other S3-compatible stores), `WAXAL_S3_SHARED_PREFIX` and `WAXAL_S3_USERS_PREFIX` if the layout differs. Read access is enough.
-- `DEVELOPER_MODE=1` switches S3 off: the documents are the local folders, as without S3.
+- `DEVELOPER_MODE=1` switches S3 and the WhatsApp webhook off: the documents are the local folders and only the test page is served.
 
 A changed file in S3 replaces the local copy, and a file removed from S3 is removed locally. Every file is copied as it is, whatever its kind; a file over
 `WAXAL_MAX_UPLOAD_MB` (20) is skipped and logged. The agent reads PDF (`read_pdf`), Excel (`read_excel`), images (`view_image`), UTF-8 text (`read_file`) and, with WaxalAgent's own tools
