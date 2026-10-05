@@ -24,7 +24,7 @@ def test_english_to_wolof_is_asked_for_in_standard_spelling_at_temperature_zero(
     messages = Messages()
     assert translator(messages).translate("How are you?", "en", "wo") == "Nanga def?"
     request = messages.requests[0]
-    assert request["temperature"] == 0 and request["thinking"] == {"type": "disabled"} and request["model"] == "claude-test" and request["messages"] == [{"role": "user", "content": "How are you?"}]
+    assert request["temperature"] == 0 and request["thinking"] == {"type": "between_tools"} and request["model"] == "claude-test" and request["messages"] == [{"role": "user", "content": "How are you?"}]
     assert "from English into Wolof" in request["system"] and "CAADA" in request["system"] and "translation only" in request["system"]
 
 
@@ -43,7 +43,7 @@ def test_same_language_and_empty_text_make_no_call():
 def test_a_model_without_temperature_is_asked_again_without_it_and_other_errors_surface():
     messages = Messages(reject_temperature=True)
     assert translator(messages).translate("Hello", "en", "wo") == "Nanga def?" and "temperature" not in messages.requests[0]
-    assert messages.requests[0]["thinking"] == {"type": "disabled"}                 # only the refused setting was dropped
+    assert messages.requests[0]["thinking"] == {"type": "between_tools"}            # only the refused setting was dropped
 
     class Broken:
         def create(self, **request):
@@ -84,3 +84,19 @@ def test_a_model_that_refuses_to_have_thinking_disabled_is_asked_again_with_it_l
             return SimpleNamespace(content=[SimpleNamespace(type="text", text="Nanga def?")], stop_reason="end_turn")
     messages = NoSwitch()
     assert translator(messages).translate("Hello", "en", "wo") == "Nanga def?" and messages.requests[0]["temperature"] == 0
+
+
+def test_the_first_accepted_combination_is_remembered_so_later_calls_do_not_fail_again():
+    calls = []
+
+    class Sonnet55:                                   # no temperature, thinking only through between_tools
+        def create(self, **request):
+            calls.append(sorted(k for k in request if k in ("temperature", "thinking")))
+            if "temperature" in request:
+                raise ValueError("temperature: non-default values are not supported")
+            if request.get("thinking") != {"type": "between_tools"}:
+                raise ValueError("thinking: use between_tools")
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="Nanga def?")], stop_reason="end_turn")
+    t = ClaudeTranslator(client=SimpleNamespace(messages=Sonnet55()), model="m")
+    assert t.translate("Hello", "en", "wo") == "Nanga def?" and calls == [["temperature", "thinking"], ["thinking"]]
+    assert t.translate("Thanks", "en", "wo") == "Nanga def?" and calls[2:] == [["thinking"]]      # one call, no failed attempts
