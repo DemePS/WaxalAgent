@@ -32,6 +32,8 @@ def main() -> None:
                         datefmt="%H:%M:%S")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per HTTP request adds nothing here
     from . import certs
+    from . import maintenance
+    maintenance.start()  # old conversations and notes: once now, then daily
     certs.trust_system_certificates()  # a company proxy re-signs HTTPS (models, Meta)
     from .server import create_app, token_from_env
     engines = args.engines or ("hosted" if os.environ.get("SOYNADE_API_KEY") or os.environ.get("ELEVENLABS_API_KEY") else "fake")
