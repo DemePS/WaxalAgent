@@ -3,7 +3,7 @@ import json
 import httpx
 import pytest
 
-from waxal_agent import soynade_api
+from waxal_agent import http_calls
 from waxal_agent.mt.soynade_api import SoynadeTranslator
 from waxal_agent.soynade_api import SoynadeClient, SoynadeError, text_in
 from waxal_agent.stt.soynade_api import SoynadeListener
@@ -19,7 +19,7 @@ def make(handler, **options):
 @pytest.fixture
 def sleeps(monkeypatch):
     waited = []
-    monkeypatch.setattr(soynade_api.time, "sleep", waited.append)
+    monkeypatch.setattr(http_calls.time, "sleep", waited.append)
     return waited
 
 
@@ -114,8 +114,8 @@ def test_without_retry_after_the_wait_grows_and_a_final_429_explains_itself(slee
 def test_calls_are_spaced_by_the_minimum_interval(monkeypatch):
     now = [100.0]
     waited = []
-    monkeypatch.setattr(soynade_api.time, "monotonic", lambda: now[0])
-    monkeypatch.setattr(soynade_api.time, "sleep", lambda s: (waited.append(s), now.__setitem__(0, now[0] + s)))
+    monkeypatch.setattr(http_calls.time, "monotonic", lambda: now[0])
+    monkeypatch.setattr(http_calls.time, "sleep", lambda s: (waited.append(s), now.__setitem__(0, now[0] + s)))
     listener = SoynadeListener(make(lambda r: httpx.Response(200, json={"text": "x"}), min_interval=0.5))
     listener.transcribe(b"x")
     listener.transcribe(b"x")
