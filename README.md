@@ -35,19 +35,20 @@ All the documents are common to all users: they live in one library folder (`dat
 and the agent reads them, read-only, for every person. Each person's own folder (`data/users/<number>/`) only holds their
 conversation. Nobody but an administrator adds documents.
 
-**With Google Drive (recommended):** the administrators add, replace and remove documents in one Drive folder, and the server mirrors it.
-1. In Google Cloud: create a project, enable the **Google Drive API**, create a **service account** and download its JSON key.
-2. In Drive: share the documents folder with the service account's e-mail address (viewer is enough).
-3. Set `WAXAL_DRIVE_FOLDER` (the folder id: the last part of its address) and `WAXAL_DRIVE_CREDENTIALS` (the key file's path; or
-   `WAXAL_DRIVE_CREDENTIALS_JSON` with the JSON itself). `WAXAL_DRIVE_INTERVAL` (seconds, default 600) is the time between syncs.
+**With S3 (production):** the person in charge puts the documents in a bucket (any S3 tool or the console works), and the server mirrors them to local folders.
+- `s3://<bucket>/documents/...` is the library, the same for everybody (synced every `WAXAL_S3_INTERVAL` seconds, default 600).
+- `s3://<bucket>/users/<phone number>/documents/...` are one person's own documents. They are fetched only when that person writes (at most every
+  `WAXAL_S3_USER_TTL` seconds, default 60) into `data/users/<phone number>/documents/`, so only active people take disk space.
+- Set `WAXAL_S3_BUCKET`; the credentials are the usual AWS ones (`AWS_ACCESS_KEY_ID`, `AWS_SECRET_ACCESS_KEY`, or a role); `WAXAL_S3_REGION`,
+  `WAXAL_S3_ENDPOINT` (other S3-compatible stores), `WAXAL_S3_SHARED_PREFIX` and `WAXAL_S3_USERS_PREFIX` if the layout differs. Read access is enough.
+- `DEVELOPER_MODE=1` switches S3 off: the documents are the local folders, as without S3.
 
-A change in Drive replaces the local file, and a file removed or trashed in Drive is removed locally. Every file is copied as it is, whatever its kind; a file over
+A changed file in S3 replaces the local copy, and a file removed from S3 is removed locally. Every file is copied as it is, whatever its kind; a file over
 `WAXAL_MAX_UPLOAD_MB` (20) is skipped and logged. The agent reads PDF (`read_pdf`), Excel (`read_excel`), images (`view_image`), UTF-8 text (`read_file`) and, with WaxalAgent's own tools
 (`waxal_agent/office_tools.py`, added with CodeAgent's `register_tool`), Word `.docx` (`read_word`) and PowerPoint `.pptx` (`read_powerpoint`) files.
-Old `.doc` / `.ppt` files and other kinds are in the library but the agent cannot read them (save them as `.docx` / `.pptx` or PDF). Only the files directly in the folder are used. A failed Drive call changes nothing and is logged.
-Files that the sync did not add are never touched.
+Old `.doc` / `.ppt` files and other kinds are in the library but the agent cannot read them (save them as `.docx` / `.pptx` or PDF). Subfolders are kept. A failed S3 call changes nothing and is logged. Local files that are not in S3 are removed by the sync (use `DEVELOPER_MODE=1` to work with local files).
 
-**Without Drive:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
+**Without S3:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
 from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.
 
 ## ElevenLabs (recognition and voice)

@@ -10,8 +10,7 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.30",
     "httpx>=0.27",   # WhatsApp Cloud API calls
-    "google-auth>=2.30",   # a service account signs in to Google Drive (the document library)
-    "requests>=2.31",     # the transport google-auth uses
+    "boto3>=1.34",   # the documents live in S3 (or an S3-compatible store)
 ]
 
 [project.optional-dependencies]
@@ -22,7 +21,7 @@ demo = ["gradio_client>=1.0"]
 waxal-agent = "waxal_agent.cli:main"
 
 [dependency-groups]
-dev = ["pytest>=8"]
+dev = ["pytest>=8", "moto[s3]>=5"]   # moto: an S3 stand-in for the tests
 
 [build-system]
 requires = ["hatchling"]

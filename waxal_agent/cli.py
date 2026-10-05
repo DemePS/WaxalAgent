@@ -3,14 +3,15 @@
 import argparse
 import os
 import sys
+from pathlib import Path
 
 
-def build_pipeline(engines: str, data: str, documents: str | None = None):
+def build_pipeline(engines: str, data: str, documents: str | None = None, refresh=None):
     from .agent import AgentTurns
     from .engines import build_engines
     from .pipeline import Pipeline
     listener, translator, speaker = build_engines(engines)
-    return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents))
+    return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh))
 
 
 def main() -> None:
@@ -44,7 +45,16 @@ def main() -> None:
     from .language import REPLY_LANGUAGE
     print(f"The agent works and answers in: {REPLY_LANGUAGE}" + ("" if REPLY_LANGUAGE == "wo" else " (translated into Wolof by Soynade)"),
           file=sys.stderr)
-    pipeline = build_pipeline(engines, args.data, args.documents)
+    s3 = None
+    if os.environ.get("WAXAL_S3_BUCKET") and os.environ.get("DEVELOPER_MODE", "").lower() not in ("1", "true", "yes", "on"):
+        from .s3_sync import S3Documents, s3_client
+        s3 = S3Documents(s3_client(), os.environ["WAXAL_S3_BUCKET"], os.environ.get("WAXAL_S3_SHARED_PREFIX") or "documents/",
+                         os.environ.get("WAXAL_S3_USERS_PREFIX") or "users/")
+        s3.start(Path(args.documents))
+        print(f"The documents come from S3 (bucket {s3.bucket}); the library is synced every {s3.interval:.0f} s.", file=sys.stderr)
+    elif os.environ.get("WAXAL_S3_BUCKET"):
+        print("DEVELOPER_MODE: S3 is off, the documents are read from the local folders.", file=sys.stderr)
+    pipeline = build_pipeline(engines, args.data, args.documents, refresh=s3.refresh_user if s3 else None)
     bot = None
     if args.whatsapp:
         from .whatsapp import WhatsAppBot, WhatsAppClient, WhatsAppConfig
@@ -55,11 +65,6 @@ def main() -> None:
     # With WhatsApp on a public server, the test page is only offered when a token protects it.
     from .files import Library
     user_files = Library(args.documents)
-    if os.environ.get("WAXAL_DRIVE_FOLDER"):  # the documents are kept up to date from this Google Drive folder
-        from .drive_sync import DriveSync
-        drive = DriveSync(user_files, os.environ["WAXAL_DRIVE_FOLDER"])
-        drive.start()
-        print(f"The documents are synced from Google Drive (folder {drive.folder_id}) every {drive.interval:.0f} s.", file=sys.stderr)
     if bot is not None:
         bot.files = user_files
     app = create_app(pipeline, token_from_env(), bot, test_page=(bot is None or token_from_env() is not None), files=user_files)

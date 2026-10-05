@@ -80,8 +80,9 @@ class AgentTurns:
     """Run one instruction for one person and return the written reply."""
 
     def __init__(self, root: Path | str = "data/users", tools: list[str] | None = None,
-                 documents: Path | str | None = None) -> None:
+                 documents: Path | str | None = None, refresh=None) -> None:
         self.root = Path(root)
+        self.refresh = refresh  # refresh(user_id, folder): fetch this person's own documents into folder before a turn
         self.documents = Path(documents).resolve() if documents else None  # the shared library, read-only for the agent
         self.system_prompt = SYSTEM_PROMPT.replace("{documents}", self.documents.as_posix() if self.documents else "{workspace}")
         self.tools = TOOLS if tools is None else tools
@@ -100,6 +101,11 @@ class AgentTurns:
         folder = user_folder(self.root, user_id)
         ui = VoiceUI()
         failure = None
+        personal = folder / "documents"
+        if self.refresh:
+            self.refresh(user_id, personal)
+        if personal.is_dir() and any(personal.iterdir()):
+            english += f"\n\nThis person also has their own documents in {personal.as_posix()}: read them too."
         with self._lock:
             session.open_project(folder, ui=ui, tools=self.tools, system_prompt=self.system_prompt, resume=True)
             if self.documents:
