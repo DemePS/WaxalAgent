@@ -33,12 +33,21 @@ from other machines.
 
 All the documents are common to all users: they live in one library folder (`data/documents`, `WAXAL_DOCUMENTS` or `--documents`),
 and the agent reads them, read-only, for every person. Each person's own folder (`data/users/<number>/`) only holds their
-conversation. Only an administrator adds documents:
-- **Test page** (protected by `WAXAL_TOKEN`): the "Library" box: pick or drop PDFs, images, Excel, CSV or text files; each one can be deleted.
-- **WhatsApp:** a document or photo sent in the chat from a number in `WAXAL_ADMINS` (comma-separated, digits) is added to the library, and the
-  answer says so. From any other number the bot says that only administrators can add documents.
+conversation. Nobody but an administrator adds documents.
 
-Only those kinds are accepted (never overwritten: `report (2).pdf`), at most 20 MB each (`WAXAL_MAX_UPLOAD_MB`) and 1000 files.
+**With Google Drive (recommended):** the administrators add, replace and remove documents in one Drive folder, and the server mirrors it.
+1. In Google Cloud: create a project, enable the **Google Drive API**, create a **service account** and download its JSON key.
+2. In Drive: share the documents folder with the service account's e-mail address (viewer is enough).
+3. Set `WAXAL_DRIVE_FOLDER` (the folder id: the last part of its address) and `WAXAL_DRIVE_CREDENTIALS` (the key file's path; or
+   `WAXAL_DRIVE_CREDENTIALS_JSON` with the JSON itself). `WAXAL_DRIVE_INTERVAL` (seconds, default 600) is the time between syncs.
+
+The test page then shows the library with a **Sync now** button (no upload, no delete: Drive is the only place). A change in Drive replaces
+the local file, a removed or trashed file disappears, Google Docs and Slides become PDF and Google Sheets become xlsx. Only the files
+directly in the folder are used (not subfolders), and only kinds the agent can read (PDF, images, Excel, CSV, text), at most
+`WAXAL_MAX_UPLOAD_MB` (20). A failed Drive call changes nothing and is shown on the page. Documents sent on WhatsApp are refused.
+
+**Without Drive:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
+from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.
 
 ## ElevenLabs (recognition and voice)
 

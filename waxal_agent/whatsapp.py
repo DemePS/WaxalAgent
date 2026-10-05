@@ -32,6 +32,7 @@ GRAPH = "https://graph.facebook.com"
 SORRY = "Sorry, something went wrong. Please try again."
 ONLY_VOICE_AND_TEXT = "I can only listen to voice notes and read text messages."
 FILE_SAVED = "I added the file to the library: {name}."
+DOCUMENTS_ARE_IN_DRIVE = "Documents are added by the administrators in Google Drive. You can ask me questions about the documents I have."
 ONLY_ADMINS_ADD_DOCUMENTS = "Only the administrators can add documents. You can ask me questions about the documents I have."
 NOT_ALLOWED = "Sorry, this number is not allowed to use this service."
 
@@ -118,6 +119,7 @@ def messages_in(payload: dict) -> list[dict]:
 class WhatsAppBot:
     def __init__(self, pipeline: Pipeline, client: WhatsAppClient, config: WhatsAppConfig) -> None:
         self.pipeline, self.client, self.config = pipeline, client, config
+        self.drive = False  # documents come from Google Drive: none is accepted in the chat
         self.files = None  # the Library: documents and photos sent by an administrator are added to it
         self._seen: OrderedDict[str, None] = OrderedDict()  # Meta can deliver a message twice
         self._lock = threading.Lock()
@@ -161,6 +163,9 @@ class WhatsAppBot:
                 result = self.pipeline.from_audio(sender, self.client.download_media(message["audio"]["id"]), speak=False)
             elif kind == "text":
                 result = self.pipeline.from_wolof(sender, message["text"]["body"], speak=False)
+            elif kind in ("document", "image") and self.drive:
+                self._say(sender, DOCUMENTS_ARE_IN_DRIVE)
+                return
             elif kind in ("document", "image") and self.files is not None:
                 if sender in self.config.admins:
                     self._keep_file(sender, kind, message)

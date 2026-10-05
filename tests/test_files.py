@@ -52,7 +52,7 @@ def app_client(tmp_path, token=None):
 
 def test_the_page_can_upload_list_and_delete_in_the_shared_library(tmp_path):
     c = app_client(tmp_path)
-    assert c.get("/api/files").json() == {"files": [], "enabled": True}
+    assert c.get("/api/files").json() == {"files": [], "enabled": True, "drive": None}
     r = c.post("/api/files", params={"name": "invoice.pdf"}, content=b"%PDF-1.4")
     assert r.status_code == 200 and r.json()["name"] == "invoice.pdf" and r.json()["files"] == [{"name": "invoice.pdf", "size": 8}]
     assert (tmp_path / "invoice.pdf").read_bytes() == b"%PDF-1.4"                  # one library, whoever asks
@@ -68,7 +68,7 @@ def test_uploads_need_the_token_and_the_page_hides_the_picker_when_disabled(tmp_
     assert c.get("/api/files").status_code == 403
     assert c.post("/api/files", params={"name": "a.pdf"}, content=b"x", headers={"x-token": "s3cret"}).status_code == 200
     off = plain_client()
-    assert off.get("/api/files").json() == {"files": [], "enabled": False}
+    assert off.get("/api/files").json() == {"files": [], "enabled": False, "drive": None}
     assert off.post("/api/files", params={"name": "a.pdf"}, content=b"x").status_code == 404
 
 
@@ -108,3 +108,28 @@ def test_administrators_come_from_the_environment():
            "WAXAL_ALLOWED": "+221 77 123 45 67, 221 78 000 00 00", "WAXAL_ADMINS": "+221 77 123 45 67"}
     config = WhatsAppConfig.from_env(env)
     assert config.admins == {"221771234567"} and config.allowed == {"221771234567", "221780000000"}
+
+
+def test_with_google_drive_the_page_cannot_add_or_delete_and_can_sync_now(tmp_path):
+    from tests.test_drive_sync import PDF, FakeDrive
+    from waxal_agent.drive_sync import DriveSync
+    drive_api, library = FakeDrive(), Library(tmp_path)
+    drive_api.put("1", "Code.pdf", PDF, b"from drive")
+    sync = DriveSync(library, "FOLDER", session=drive_api)
+    pipeline = Pipeline(FakeListener(default="naka"), FakeTranslator(), FakeSpeaker(), StubAgent())
+    c = TestClient(create_app(pipeline, files=library, drive=sync))
+    assert c.get("/api/files").json()["drive"]["files"] == 0 and c.get("/api/files").json()["files"] == []
+    assert c.post("/api/files", params={"name": "a.pdf"}, content=b"x").status_code == 403
+    assert c.delete("/api/files", params={"name": "Code.pdf"}).status_code == 403
+    r = c.post("/api/sync").json()
+    assert r["added"] == 1 and r["files"] == [{"name": "Code.pdf", "size": 10}] and r["drive"]["error"] == ""
+    drive_api.fail_listing = True
+    assert c.post("/api/sync").status_code == 502
+    assert plain_client().post("/api/sync").status_code == 404                      # no Drive configured
+
+
+def test_documents_sent_on_whatsapp_are_refused_when_they_come_from_google_drive(tmp_path):
+    bot, meta = admin_bot(tmp_path)
+    bot.drive = True
+    bot.handle(payload(document()))
+    assert not list(tmp_path.glob("*")) and "Google Drive" in meta.sent[0]["text"]["body"]
