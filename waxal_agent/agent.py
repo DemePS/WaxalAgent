@@ -89,7 +89,7 @@ class AgentTurns:
         self._lock = threading.Lock()
         self._running = False
 
-    def stop(self) -> bool:
+    def stop(self, user_id: str | None = None) -> bool:
         """Stop the turn that is running (it ends at the next model call and is rolled back). False when none is running."""
         if not self._running:
             return False

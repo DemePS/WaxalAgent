@@ -11,6 +11,10 @@ def build_pipeline(engines: str, data: str, documents: str | None = None, refres
     from .engines import build_engines
     from .pipeline import Pipeline
     listener, translator, speaker = build_engines(engines)
+    workers = int(os.environ.get("WAXAL_WORKERS") or 4)
+    if workers > 1:  # turns of different people run in parallel, in separate processes
+        from .agent_pool import AgentPool
+        return Pipeline(listener, translator, speaker, AgentPool(workers, data, documents, refresh))
     return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh))
 
 

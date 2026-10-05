@@ -99,10 +99,10 @@ class Pipeline:
             log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))
         return result
 
-    def stop(self) -> bool:
-        """Ask the agent to stop its running turn; False when it has none."""
+    def stop(self, user_id: str | None = None) -> bool:
+        """Ask the agent to stop the running turn (of this person); False when it has none."""
         stop = getattr(self.agent, "stop", None)
-        return bool(stop and stop())
+        return bool(stop and stop(user_id))
 
     def speak_text(self, wolof: str) -> tuple[bytes, list[str]]:
         """The voice of a Wolof text, on its own (after the texts were delivered): (WAV, notes; empty WAV when it failed)."""
