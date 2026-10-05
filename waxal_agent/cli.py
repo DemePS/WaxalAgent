@@ -17,7 +17,7 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="waxal-agent", description="A Wolof voice agent.")
     sub = parser.add_subparsers(dest="command", required=True)
     serve = sub.add_parser("serve", help="Start the web server with the test page.")
-    serve.add_argument("--engines", default=None, help="soynade (recognition, translation and Wolof voice, all through Soynade's API; the default when SOYNADE_API_KEY is set), soynade-asr (only recognition is real) or fake (stand-ins, the default without a key).")
+    serve.add_argument("--engines", default=None, help="hosted (recognition, translation, voice: Soynade for recognition and voice, Claude for translation; WAXAL_STT, WAXAL_MT and WAXAL_TTS change each one; the default when SOYNADE_API_KEY or ELEVENLABS_API_KEY is set), soynade-asr (only recognition is real) or fake (stand-ins, the default without a key).")
     serve.add_argument("--whatsapp", action="store_true",
                        help="Answer WhatsApp voice notes at /webhook (needs the WHATSAPP_* variables, see README).")
     serve.add_argument("--host", default="127.0.0.1")
@@ -32,10 +32,12 @@ def main() -> None:
                         datefmt="%H:%M:%S")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per HTTP request adds nothing here
     from . import certs
+    from . import maintenance
+    maintenance.start()  # old conversations and notes: once now, then daily
     certs.trust_system_certificates()  # a company proxy re-signs HTTPS (models, Meta)
     from .server import create_app, token_from_env
-    engines = args.engines or ("soynade" if os.environ.get("SOYNADE_API_KEY") else "fake")
-    print(f"Engines: {engines}" + (" (stand-ins: no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY)" if engines == "fake" else ""),
+    engines = args.engines or ("hosted" if os.environ.get("SOYNADE_API_KEY") or os.environ.get("ELEVENLABS_API_KEY") else "fake")
+    print(f"Engines: {engines}" + (" (stand-ins: no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY or ELEVENLABS_API_KEY)" if engines == "fake" else ""),
           file=sys.stderr)
     from .language import REPLY_LANGUAGE
     print(f"The agent works and answers in: {REPLY_LANGUAGE}" + ("" if REPLY_LANGUAGE == "wo" else " (translated into Wolof by Soynade)"),

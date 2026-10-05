@@ -92,3 +92,12 @@ def test_the_page_gets_the_texts_first_and_the_voice_afterwards():
     assert first["reply_wolof"] and first["audio"] == ""
     voice = c.post("/api/speak", json={"text": first["reply_wolof"]}).json()
     assert voice["audio"] and voice["notes"] == []
+
+
+def test_a_failing_service_gives_the_page_a_message_not_a_crash():
+    class Broken:
+        def translate(self, text, source, target):
+            raise ValueError("Claude returned no translation of 'x'")
+    pipeline = Pipeline(FakeListener(default="naka"), Broken(), FakeSpeaker(), StubAgent())
+    r = TestClient(create_app(pipeline)).post("/api/text", json={"text": "naka nga def"})
+    assert r.status_code == 502 and "ValueError: Claude returned no translation" in r.json()["detail"]
