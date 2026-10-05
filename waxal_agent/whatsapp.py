@@ -30,7 +30,8 @@ log = logging.getLogger("waxal.whatsapp")
 
 GRAPH = "https://graph.facebook.com"
 SORRY = "Sorry, something went wrong. Please try again."
-ONLY_VOICE_AND_TEXT = "I can only listen to voice notes and read text messages."
+ONLY_VOICE_AND_TEXT = "I can only listen to voice notes, read text messages, and keep documents and photos."
+FILE_SAVED = "I saved your file: {name}. Ask me about it."
 NOT_ALLOWED = "Sorry, this number is not allowed to use this service."
 
 
@@ -114,6 +115,7 @@ def messages_in(payload: dict) -> list[dict]:
 class WhatsAppBot:
     def __init__(self, pipeline: Pipeline, client: WhatsAppClient, config: WhatsAppConfig) -> None:
         self.pipeline, self.client, self.config = pipeline, client, config
+        self.files = None  # a UserFiles: documents and photos sent in the chat are kept for the agent
         self._seen: OrderedDict[str, None] = OrderedDict()  # Meta can deliver a message twice
         self._lock = threading.Lock()
 
@@ -156,6 +158,9 @@ class WhatsAppBot:
                 result = self.pipeline.from_audio(sender, self.client.download_media(message["audio"]["id"]), speak=False)
             elif kind == "text":
                 result = self.pipeline.from_wolof(sender, message["text"]["body"], speak=False)
+            elif kind in ("document", "image") and self.files is not None:
+                self._keep_file(sender, kind, message)
+                return
             else:
                 self._say(sender, ONLY_VOICE_AND_TEXT)
                 return
@@ -174,6 +179,22 @@ class WhatsAppBot:
                     self.client.send_voice(sender, audio.to_ogg_opus(wav))
             except Exception:
                 log.exception("The voice note could not be made or sent")
+
+    def _keep_file(self, sender: str, kind: str, message: dict) -> None:
+        """A document or photo sent in the chat goes to the person's folder; the answer says so (or why not)."""
+        from .files import FileRefused
+        info = message[kind]
+        name = info.get("filename") or f"photo-{info['id'][-8:]}" + (".png" if "png" in info.get("mime_type", "") else ".jpg")
+        try:
+            saved = self.files.save(sender, name, self.client.download_media(info["id"]))
+        except FileRefused as e:
+            self._say(sender, str(e))
+            return
+        except Exception:
+            log.exception("Could not keep a file")
+            self._say(sender, SORRY)
+            return
+        self._say(sender, FILE_SAVED.format(name=saved))
 
     def _say(self, to: str, english: str) -> None:
         """A fixed message, translated like every reply (no Wolof is written by hand here)."""

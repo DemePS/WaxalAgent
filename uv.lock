@@ -410,8 +410,8 @@ wheels = [
 
 [[package]]
 name = "codeagent"
-version = "0.5.1"
-source = { git = "https://github.com/DemePS/CodeAgent.git?rev=dcdef6f0addfdd3bc6ce55426b51b70ef965f225#dcdef6f0addfdd3bc6ce55426b51b70ef965f225" }
+version = "0.6.1"
+source = { git = "https://github.com/DemePS/CodeAgent.git?rev=42087e7d04bb545321957c8d7556112334a2ee1c#42087e7d04bb545321957c8d7556112334a2ee1c" }
 dependencies = [
     { name = "anthropic" },
     { name = "azure-identity" },
@@ -1399,7 +1399,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=dcdef6f0addfdd3bc6ce55426b51b70ef965f225" },
+    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=42087e7d04bb545321957c8d7556112334a2ee1c" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "gradio-client", marker = "extra == 'demo'", specifier = ">=1.0" },
     { name = "httpx", specifier = ">=0.27" },

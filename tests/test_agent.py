@@ -104,3 +104,34 @@ def test_with_wolof_as_the_reply_language_ask_human_speaks_the_question_itself(m
     ui = voice_ui.VoiceUI()
     ui.panel("Ban fichier?", tone="question")
     assert "finish your turn" in ui.ask_text("Your answer: ") and ui.spoken == ["Ban fichier?"]
+
+
+def test_the_agent_is_told_to_answer_only_from_its_workspace_files():
+    from waxal_agent.agent import CONCISE, SYSTEM_PROMPT
+    assert "only from information you found in the files of your workspace" in SYSTEM_PROMPT and "Never use outside knowledge" in SYSTEM_PROMPT
+    assert "answer only from what you found in your workspace files" in CONCISE
+
+
+def test_stop_only_reaches_a_running_turn(tmp_path, monkeypatch):
+    monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
+    turns = AgentTurns(tmp_path / "users")
+    stops = []
+    monkeypatch.setattr(session, "stop", lambda: stops.append(1))
+    assert turns.stop() is False and stops == []              # nothing running: a stale stop must not abort the next turn
+
+    def send(text):
+        assert turns.stop() is True and stops == [1]          # asked from another thread while the turn runs
+        return True
+    monkeypatch.setattr(session, "send", send)
+    turns.ask("u", "hello")
+    assert turns.stop() is False                              # the turn is over
+
+
+def test_a_stop_asked_before_a_turn_does_not_abort_it(tmp_path, monkeypatch):
+    from coding_agent import state
+    monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
+    state.stop_requested = True
+    seen = []
+    monkeypatch.setattr(session, "send", lambda text: seen.append(state.stop_requested) or True)
+    AgentTurns(tmp_path / "users").ask("u", "hello")
+    assert seen == [False]

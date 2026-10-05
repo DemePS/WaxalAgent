@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # The agent engine, pinned to a commit of main (0.6.0 code; move to a tag once one exists).
-    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@dcdef6f0addfdd3bc6ce55426b51b70ef965f225",
+    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@42087e7d04bb545321957c8d7556112334a2ee1c",
     "fastapi>=0.110",
     "uvicorn>=0.30",
     "httpx>=0.27",   # WhatsApp Cloud API calls
