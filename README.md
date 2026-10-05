@@ -141,3 +141,16 @@ If a call fails with `CERTIFICATE_VERIFY_FAILED`, a proxy on your network re-sig
 Python does not know (your browser does). WaxalAgent turns on the operating system's certificate store (through CodeAgent's
 `truststore`) at startup, so this should just work on a company Windows PC; set `AGENT_SYSTEM_CERTS=0` to switch that off.
 If it still fails, set `SSL_CERT_FILE` to the company root certificate (a `.pem` from IT). In Docker, put it in `certs/`.
+
+## Shipping a deployment with its documents baked in
+
+Put the deployment's documents (the domain: finance, medicine...) in `library/` (or any folder), then build:
+
+```bash
+docker compose build                       # uses ./library
+LIBRARY=customers/acme/docs docker compose build   # or another folder
+```
+
+The documents are copied into the image at `/app/library` and `WAXAL_DOCUMENTS` points there, so the customer receives
+one private image: no source, no documents to copy. Each person's own documents and memory stay in the mounted `data/`
+volume. `library/` is git-ignored so customer documents are never committed.

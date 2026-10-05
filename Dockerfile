@@ -26,6 +26,12 @@ WORKDIR /app
 COPY pyproject.toml README.md ./
 COPY waxal_agent ./waxal_agent
 COPY scripts ./scripts
+# The library baked into the image: the documents of this deployment (the domain: finance, medicine...). Put them in
+# ./library (or another folder, --build-arg LIBRARY=customers/acme/docs) before building. Per-person documents and
+# memory stay outside the image, in the mounted data/ volume.
+ARG LIBRARY=library
+COPY ${LIBRARY}/ /app/library/
+ENV WAXAL_DOCUMENTS=/app/library
 RUN uv venv /opt/venv && . /opt/venv/bin/activate && uv pip install .
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1
 

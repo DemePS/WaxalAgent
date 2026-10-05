@@ -5,3 +5,5 @@ data/
 .env
 dist/
 check_*.wav
+library/*
+!library/.gitkeep

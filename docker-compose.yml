@@ -6,7 +6,10 @@
 
 services:
   waxal:
-    build: .
+    build:
+      context: .
+      args:
+        LIBRARY: "${LIBRARY:-library}"
     env_file:
       - path: .env
         required: false
