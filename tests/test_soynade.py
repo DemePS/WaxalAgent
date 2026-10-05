@@ -7,6 +7,10 @@ def test_engine_names(monkeypatch):
     monkeypatch.setenv("SOYNADE_API_KEY", "k")
     assert [type(e).__name__ for e in build_engines("fake")] == ["FakeListener", "FakeTranslator", "FakeSpeaker"]
     assert [type(e).__name__ for e in build_engines("soynade-asr")] == ["SoynadeListener", "FakeTranslator", "FakeSpeaker"]
+    monkeypatch.setenv("ELEVENLABS_API_KEY", "k")
+    assert [type(e).__name__ for e in build_engines("hosted")] == ["ElevenLabsListener", "ClaudeTranslator", "ElevenLabsSpeaker"]  # the default
+    monkeypatch.setenv("WAXAL_STT", "soynade")
+    monkeypatch.setenv("WAXAL_TTS", "soynade")
     assert [type(e).__name__ for e in build_engines("soynade")] == ["SoynadeListener", "ClaudeTranslator", "SoynadeSpeaker"]
     monkeypatch.setenv("WAXAL_MT", "soynade")
     assert [type(e).__name__ for e in build_engines("soynade")] == ["SoynadeListener", "SoynadeTranslator", "SoynadeSpeaker"]

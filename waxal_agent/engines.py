@@ -11,7 +11,7 @@ def _shared_soynade_client():
     """A Soynade client when any engine in use is Soynade's, else None (an ElevenLabs-only run needs no Soynade key)."""
     import os
     env = os.environ
-    uses = ((env.get("WAXAL_STT") or "soynade").lower() == "soynade" or (env.get("WAXAL_TTS") or "soynade").lower() == "soynade"
+    uses = ((env.get("WAXAL_STT") or "elevenlabs").lower() == "soynade" or (env.get("WAXAL_TTS") or "elevenlabs").lower() == "soynade"
             or (env.get("WAXAL_MT") or "claude").lower() == "soynade")
     if not uses:
         return None
@@ -34,10 +34,10 @@ def build_translator(soynade_client=None) -> Translator:
 
 
 def build_speaker(soynade_client=None) -> Speaker:
-    """WAXAL_TTS picks the voice: soynade (default: their API does not offer it yet), oolel-demo (Oolel-Voices through
+    """WAXAL_TTS picks the voice: elevenlabs (default), soynade (their API does not offer it yet), oolel-demo (Oolel-Voices through
     Soynade's public demo Space), or huggingface (MMS Wolof, HF_TOKEN)."""
     import os
-    choice = (os.environ.get("WAXAL_TTS") or "soynade").lower()
+    choice = (os.environ.get("WAXAL_TTS") or "elevenlabs").lower()
     if choice == "huggingface":
         from .tts.huggingface_api import HuggingFaceSpeaker
         return HuggingFaceSpeaker()
@@ -55,10 +55,10 @@ def build_speaker(soynade_client=None) -> Speaker:
 
 
 def build_listener(soynade_client=None) -> Listener:
-    """WAXAL_STT picks the recogniser: soynade (default: Wolof speech straight to English in one call) or elevenlabs (Wolof text,
-    translated to English afterwards)."""
+    """WAXAL_STT picks the recogniser: elevenlabs (default; Wolof text,
+    translated to English afterwards) or soynade (Wolof speech straight to English in one call)."""
     import os
-    choice = (os.environ.get("WAXAL_STT") or "soynade").lower()
+    choice = (os.environ.get("WAXAL_STT") or "elevenlabs").lower()
     if choice == "elevenlabs":
         from .stt.elevenlabs_api import ElevenLabsListener
         return ElevenLabsListener()
