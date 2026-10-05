@@ -14,18 +14,15 @@ rejection shows Soynade's own message so a field name can be corrected from it.
 
 from __future__ import annotations
 
-import logging
 import os
 import re
-import threading
-import time
 
 import httpx
 
-log = logging.getLogger("waxal.soynade")
+from .http_calls import CallPolicy
+
 
 DEFAULT_BASE_URL = "https://api.soynade.ai/v1"
-RETRY_STATUS = (429, 500, 502, 503, 504)
 
 
 class SoynadeError(Exception):
@@ -44,15 +41,15 @@ class SoynadeClient:
             raise SoynadeError("SOYNADE_API_KEY is not set (create a key in Soynade's console).")
         self.base_url = (base_url or os.environ.get("SOYNADE_BASE_URL") or DEFAULT_BASE_URL).rstrip("/")
         self.http = http or httpx.Client(timeout=httpx.Timeout(120, connect=15))
-        # Rate limits (HTTP 429) are normal on a small plan: wait as the server says, retry a few times, and never send two
-        # calls closer than min_interval seconds (SOYNADE_MIN_INTERVAL, default 0.5; SOYNADE_RETRIES, default 4; a 5xx is retried only SOYNADE_SERVER_RETRIES times, default 1).
-        self.retries = retries if retries is not None else int(os.environ.get("SOYNADE_RETRIES") or 4)
-        self.backoff = backoff
-        self.server_retries = int(os.environ.get("SOYNADE_SERVER_RETRIES") or 1)  # extra tries after a 5xx (not for 429)
-        self.min_interval = (min_interval if min_interval is not None
-                             else float(os.environ.get("SOYNADE_MIN_INTERVAL") or 0.5))
-        self._gate = threading.Lock()
-        self._last_call = 0.0
+        # Rate limits, retries and the cooldown are the shared policy (waxal_agent/http_calls.py). Settings: SOYNADE_RETRIES
+        # (429, default 2), SOYNADE_SERVER_RETRIES (5xx, default 1), SOYNADE_MIN_INTERVAL (default 0.5 s), SOYNADE_COOLDOWN (60 s).
+        self.retries = retries if retries is not None else int(os.environ.get("SOYNADE_RETRIES") or 2)
+        self.policy = CallPolicy(
+            "Soynade API call", SoynadeError, detail=_detail, retries=self.retries, backoff=backoff,
+            server_retries=int(os.environ.get("SOYNADE_SERVER_RETRIES") or 1),
+            min_interval=min_interval if min_interval is not None else float(os.environ.get("SOYNADE_MIN_INTERVAL") or 0.5),
+            cooldown=float(os.environ.get("SOYNADE_COOLDOWN") or 60),
+            limit_hint="The rate limit of your Soynade plan is reached: wait a minute, or check the limits in Soynade's console.")
 
     def post_json(self, path: str, body: dict) -> httpx.Response:
         return self._request("POST", path, json=body)
@@ -61,43 +58,9 @@ class SoynadeClient:
         """A multipart upload (an audio file plus fields)."""
         return self._request("POST", path, files=files, data=data or {})
 
-    def _throttle(self) -> None:
-        with self._gate:
-            wait = self._last_call + self.min_interval - time.monotonic()
-            if wait > 0:
-                time.sleep(wait)
-            self._last_call = time.monotonic()
-
     def _request(self, method: str, path: str, **options) -> httpx.Response:
-        last, wait, server_errors = "", 0.0, 0
-        for attempt in range(self.retries + 1):
-            self._throttle()
-            started = time.monotonic()
-            try:
-                response = self.http.request(method, f"{self.base_url}/{path}", headers={"Authorization": f"Bearer {self.api_key}"},
-                                             **options)
-            except httpx.TransportError as e:
-                last = f"network error: {type(e).__name__}: {e}"
-                log.warning("%s: %s after %.1f s", path, last, time.monotonic() - started)
-            else:
-                log.info("%s -> HTTP %s in %.1f s (attempt %d)", path, response.status_code, time.monotonic() - started, attempt + 1)
-                if response.status_code == 200:
-                    return response
-                last = f"HTTP {response.status_code}: {_detail(response)}"
-                if response.status_code >= 500:  # their server is failing: retry a little, never for minutes (the turn waits)
-                    server_errors += 1
-                    if server_errors > self.server_retries:
-                        raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
-                if response.status_code not in RETRY_STATUS:
-                    raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}", status=response.status_code)
-                wait = _retry_after(response)
-            if attempt < self.retries:
-                time.sleep(min(max(wait, self.backoff * (2 ** attempt)), 30))
-                wait = 0.0
-        limited = last.startswith("HTTP 429")
-        hint = (" The rate limit of your Soynade plan is reached: wait a minute, or check the limits in Soynade's console."
-                if limited else "")
-        raise SoynadeError(f"Soynade API call failed ({self.base_url}/{path}): {last}.{hint}", status=429 if limited else None)
+        url = f"{self.base_url}/{path}"
+        return self.policy.run(lambda: self.http.request(method, url, headers={"Authorization": f"Bearer {self.api_key}"}, **options), url)
 
 
 def text_in(response: httpx.Response, keys: tuple[str, ...]) -> str:
@@ -130,13 +93,6 @@ def _find(data, keys):
             if found is not None:
                 return found
     return None
-
-
-def _retry_after(response: httpx.Response) -> float:
-    try:
-        return max(0.0, float(response.headers.get("retry-after", "0")))
-    except ValueError:
-        return 0.0
 
 
 def _detail(response: httpx.Response) -> str:
