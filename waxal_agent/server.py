@@ -13,7 +13,6 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from .audio import AudioError
-from .drive_sync import DriveError, DriveSync
 from .files import MAX_BYTES, FileRefused, Library
 from .pipeline import Pipeline, TurnResult
 from .soynade_api import SoynadeError
@@ -36,7 +35,7 @@ def as_json(result: TurnResult) -> dict:
 
 
 def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | None = None,
-               test_page: bool = True, files: Library | None = None, drive: DriveSync | None = None) -> FastAPI:
+               test_page: bool = True, files: Library | None = None) -> FastAPI:
     """`token`: when set (WAXAL_TOKEN), every /api call must send it in the X-Token header.
     `test_page`: False leaves only the WhatsApp webhook (a public server must not offer the test page)."""
     app = FastAPI(title="WaxalAgent", docs_url=None, redoc_url=None, openapi_url=None)
@@ -113,20 +112,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
         @app.get("/api/files")
         def list_files(request: Request):
             check(request)
-            return {"files": files.list() if files else [], "enabled": files is not None,
-                    "drive": drive.status() if drive else None}   # with Drive, documents are added there, not on this page
-
-        @app.post("/api/sync")
-        async def sync_now(request: Request):
-            """Sync the Google Drive folder now (the page's "Sync now" button)."""
-            check(request)
-            if drive is None:
-                raise HTTPException(404, "Google Drive is not configured.")
-            try:
-                result = await run_in_threadpool(drive.sync_once)
-            except DriveError as e:
-                raise HTTPException(502, str(e))
-            return {**result, "files": files.list(), "drive": drive.status()}
+            return {"files": files.list() if files else [], "enabled": files is not None}
 
         @app.post("/api/files")
         async def upload_file(request: Request, name: str):
@@ -134,8 +120,6 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             check(request)
             if files is None:
                 raise HTTPException(404, "Uploads are not enabled.")
-            if drive is not None:
-                raise HTTPException(403, "Documents are added in Google Drive.")
             data = await request.body()
             if len(data) > MAX_BYTES:
                 raise HTTPException(413, "The file is too big.")
@@ -149,8 +133,6 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             check(request)
             if files is None:
                 raise HTTPException(404, "Uploads are not enabled.")
-            if drive is not None:
-                raise HTTPException(403, "Documents are removed in Google Drive.")
             try:
                 files.delete(name)
             except FileRefused as e:

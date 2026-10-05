@@ -62,9 +62,6 @@ class DriveSync:
         self.library, self.folder_id, self._session = library, folder_id, session
         self.interval = interval if interval is not None else float(os.environ.get("WAXAL_DRIVE_INTERVAL") or 600)
         self._lock = threading.Lock()
-        self.last_sync: float | None = None
-        self.last_result: dict = {}
-        self.error = ""
 
     # --- Drive
     @property
@@ -126,7 +123,6 @@ class DriveSync:
             try:
                 items = self.listing()
             except DriveError as e:
-                self.error = str(e)
                 log.error("Google Drive sync failed: %s", e)
                 raise
             manifest, result = self._manifest(), {"added": 0, "updated": 0, "removed": 0, "skipped": []}
@@ -143,7 +139,6 @@ class DriveSync:
                 (self.library.folder / manifest.pop(drive_id)["name"]).unlink(missing_ok=True)
                 result["removed"] += 1
             self._save_manifest(manifest)
-            self.last_sync, self.last_result, self.error = time.time(), result, ""
             log.info("Google Drive sync: %s added, %s updated, %s removed, %s skipped", result["added"], result["updated"],
                      result["removed"], len(result["skipped"]))
             return result
@@ -174,9 +169,6 @@ class DriveSync:
         manifest[item["id"]] = {"name": name, "modified": item["modifiedTime"]}
         taken[name] = item["id"]
 
-    def status(self) -> dict:
-        return {"last_sync": self.last_sync, "error": self.error, "files": len(self._manifest()), "folder": self.folder_id}
-
     def start(self) -> threading.Thread:
         """Sync now and then every `interval` seconds, in a background thread (a failure is logged, the next run tries again)."""
         stop = threading.Event()
@@ -185,8 +177,8 @@ class DriveSync:
             while True:
                 try:
                     self.sync_once()
-                except Exception as e:  # never let the thread die: Drive may be down for a while
-                    self.error = self.error or str(e)
+                except Exception as e:  # never let the thread die: Drive may be down for a while (sync_once logged why)
+                    log.debug("sync failed: %s", e)
                 if stop.wait(self.interval):
                     return
         thread = threading.Thread(target=loop, name="drive-sync", daemon=True)

@@ -41,10 +41,10 @@ conversation. Nobody but an administrator adds documents.
 3. Set `WAXAL_DRIVE_FOLDER` (the folder id: the last part of its address) and `WAXAL_DRIVE_CREDENTIALS` (the key file's path; or
    `WAXAL_DRIVE_CREDENTIALS_JSON` with the JSON itself). `WAXAL_DRIVE_INTERVAL` (seconds, default 600) is the time between syncs.
 
-The test page then shows the library with a **Sync now** button (no upload, no delete: Drive is the only place). A change in Drive replaces
-the local file, a removed or trashed file disappears, Google Docs and Slides become PDF and Google Sheets become xlsx. Only the files
-directly in the folder are used (not subfolders), and only kinds the agent can read (PDF, images, Excel, CSV, text), at most
-`WAXAL_MAX_UPLOAD_MB` (20). A failed Drive call changes nothing and is shown on the page. Documents sent on WhatsApp are refused.
+A change in Drive replaces the local file, and a file removed or trashed in Drive is removed locally. Google Docs and Slides become PDF and Google
+Sheets become xlsx (Drive cannot hand those over as files); other files are copied as they are, and a kind the agent cannot read or a file over
+`WAXAL_MAX_UPLOAD_MB` (20) is skipped and logged. Only the files directly in the folder are used. A failed Drive call changes nothing and is logged.
+Files that the sync did not add are never touched.
 
 **Without Drive:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
 from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.

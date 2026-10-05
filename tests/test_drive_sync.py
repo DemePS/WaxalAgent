@@ -119,10 +119,9 @@ def test_a_failed_listing_changes_nothing_and_is_reported(setup):
     drive.fail_listing = True
     with pytest.raises(DriveError, match="HTTP 403"):
         sync.sync_once()
-    assert names(library) == ["Code.pdf"] and "HTTP 403" in sync.status()["error"]
+    assert names(library) == ["Code.pdf"]                                           # nothing changed
     drive.fail_listing = False
-    sync.sync_once()
-    assert sync.status()["error"] == "" and sync.status()["files"] == 1
+    assert sync.sync_once() == {"added": 0, "updated": 0, "removed": 0, "skipped": []}   # and the next sync works again
 
 
 def test_the_manifest_is_a_hidden_file_and_the_library_does_not_list_it(setup):

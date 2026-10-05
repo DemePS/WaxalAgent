@@ -55,16 +55,14 @@ def main() -> None:
     # With WhatsApp on a public server, the test page is only offered when a token protects it.
     from .files import Library
     user_files = Library(args.documents)
-    drive = None
-    if os.environ.get("WAXAL_DRIVE_FOLDER"):  # the administrators add documents in this Google Drive folder
+    if os.environ.get("WAXAL_DRIVE_FOLDER"):  # the documents are kept up to date from this Google Drive folder
         from .drive_sync import DriveSync
         drive = DriveSync(user_files, os.environ["WAXAL_DRIVE_FOLDER"])
         drive.start()
-        print(f"Documents are synced from Google Drive (folder {drive.folder_id}) every {drive.interval:.0f} s.", file=sys.stderr)
+        print(f"The documents are synced from Google Drive (folder {drive.folder_id}) every {drive.interval:.0f} s.", file=sys.stderr)
     if bot is not None:
-        bot.files, bot.drive = user_files, drive is not None
-    app = create_app(pipeline, token_from_env(), bot, test_page=(bot is None or token_from_env() is not None), files=user_files,
-                     drive=drive)
+        bot.files = user_files
+    app = create_app(pipeline, token_from_env(), bot, test_page=(bot is None or token_from_env() is not None), files=user_files)
     if not os.environ.get("WAXAL_TOKEN") and args.host not in ("127.0.0.1", "localhost"):
         print("Warning: listening beyond this PC without WAXAL_TOKEN set: anyone who can reach it can use the agent.",
               file=sys.stderr)

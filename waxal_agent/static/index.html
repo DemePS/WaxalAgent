@@ -42,7 +42,6 @@
   <button id="cancel" class="small" type="button" hidden>Stop</button>
   <section id="files" hidden>
     <h2>Library: the documents everybody can ask about</h2>
-    <div id="driveinfo" hidden><span id="drivetext"></span> <button class="small" type="button" id="syncnow">Sync now</button></div>
     <div id="drop"><input type="file" id="pick" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xlsm,.csv,.txt,.md,.json">
       <span class="empty">or drop files here: the agent reads them for every person.</span></div>
     <ul id="filelist"></ul>
@@ -123,7 +122,6 @@ async function send(path, body, type) {
 }
 
 const filesBox = document.getElementById('files'), fileList = document.getElementById('filelist'), fileStatus = document.getElementById('filestatus');
-let driveMode = false;
 function renderFiles(files) {
   fileList.replaceChildren(...files.map(f => { const li = document.createElement('li');
     const label = document.createElement('span'); label.textContent = f.name;
@@ -131,26 +129,12 @@ function renderFiles(files) {
     const del = document.createElement('button'); del.className = 'small'; del.type = 'button'; del.textContent = 'Delete';
     del.onclick = async () => { const r = await fetch('/api/files?name=' + encodeURIComponent(f.name), { method: 'DELETE', headers: headers() });
       const d = await r.json().catch(() => ({})); r.ok ? renderFiles(d.files) : fileStatus.textContent = d.detail || `Error ${r.status}`; };
-    li.append(label); if (!driveMode) li.append(del); return li; }));
+    li.append(label, del); return li; }));
 }
 async function loadFiles() {
   try { const r = await fetch('/api/files', { headers: headers() }); const d = await r.json();
-    if (d.enabled) { showDrive(d.drive); filesBox.hidden = false; renderFiles(d.files); } } catch { /* the list is a convenience */ }
+    if (d.enabled) { filesBox.hidden = false; renderFiles(d.files); } } catch { /* the list is a convenience */ }
 }
-// With Google Drive the administrators add and remove documents there: the page only shows the library and syncs on request.
-function showDrive(drive) {
-  driveMode = !!drive; document.getElementById('drop').hidden = driveMode; document.getElementById('driveinfo').hidden = !driveMode;
-  if (!drive) return;
-  const when = drive.last_sync ? 'last sync ' + new Date(drive.last_sync * 1000).toLocaleTimeString() : 'not synced yet';
-  document.getElementById('drivetext').textContent = 'Documents come from Google Drive (' + when + ')' + (drive.error ? ': ' + drive.error : '.');
-}
-document.getElementById('syncnow').addEventListener('click', async () => {
-  fileStatus.style.color = 'var(--muted)'; fileStatus.textContent = 'Syncing…';
-  const r = await fetch('/api/sync', { method: 'POST', headers: headers() }); const d = await r.json().catch(() => ({}));
-  if (!r.ok) { fileStatus.style.color = 'var(--danger)'; fileStatus.textContent = d.detail || `Error ${r.status}`; return; }
-  showDrive(d.drive); renderFiles(d.files);
-  fileStatus.textContent = `${d.added} added, ${d.updated} updated, ${d.removed} removed` + (d.skipped.length ? `, skipped: ${d.skipped.join('; ')}` : '');
-});
 async function uploadFiles(list) {
   fileStatus.textContent = '';
   for (const file of list) {
