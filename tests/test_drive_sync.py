@@ -102,9 +102,11 @@ def test_every_kind_of_file_is_copied_and_only_oversized_ones_are_skipped_with_t
     drive.put("1", "contract.docx", "application/octet-stream", b"word")
     drive.put("2", "Big.pdf", size=11)
     drive.put("3", "../../evil name?.pdf", content=b"ok")                           # a name is never a path
+    drive.put("4", ".drive-manifest.json", "application/json", b"{}")                # nothing can overwrite the sync's own files
     result = sync.sync_once()
-    assert names(library) == ["contract.docx", "evil name_.pdf"] and result["added"] == 2
-    assert len(result["skipped"]) == 1 and "Big.pdf" in result["skipped"][0] and "too big" in result["skipped"][0]
+    assert names(library) == ["contract.docx", "evil name?.pdf"] and result["added"] == 2
+    assert len(result["skipped"]) == 2 and any("Big.pdf" in s and "too big" in s for s in result["skipped"])
+    assert any(".drive-manifest.json" in s for s in result["skipped"]) and (library.folder / MANIFEST).read_text() != "{}"
 
 
 def test_a_failed_listing_changes_nothing_and_is_reported(setup):

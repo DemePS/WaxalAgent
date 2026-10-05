@@ -16,7 +16,6 @@ from __future__ import annotations
 import json
 import logging
 import os
-import re
 import threading
 import time
 from pathlib import Path
@@ -104,10 +103,10 @@ class DriveSync:
 
     @staticmethod
     def local_name(item: dict) -> str:
-        """The file name as it is (any kind of file is copied), made safe as a name: never a path."""
-        name = re.sub(r"[^\w.()\- ]", "_", item["name"].replace("\\", "/").rsplit("/", 1)[-1]).strip(". ")[-120:]
-        if not name:
-            raise FileRefused("no usable name")
+        """The file name as it is: a name, never a path. Names starting with a dot are skipped (the sync's own files are hidden ones)."""
+        name = Path(item["name"].replace("\\", "/")).name
+        if not name or name.startswith("."):
+            raise FileRefused("not a usable file name")
         return name
 
     def sync_once(self) -> dict:
