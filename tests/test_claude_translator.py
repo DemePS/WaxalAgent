@@ -24,7 +24,7 @@ def test_english_to_wolof_is_asked_for_in_standard_spelling_at_temperature_zero(
     messages = Messages()
     assert translator(messages).translate("How are you?", "en", "wo") == "Nanga def?"
     request = messages.requests[0]
-    assert request["temperature"] == 0 and request["thinking"] == {"type": "disabled"} and request["model"] == "claude-test" and request["messages"] == [{"role": "user", "content": "How are you?"}]
+    assert request["temperature"] == 0 and request["thinking"] == {"type": "between_tools"} and request["model"] == "claude-test" and request["messages"] == [{"role": "user", "content": "How are you?"}]
     assert "from English into Wolof" in request["system"] and "CAADA" in request["system"] and "translation only" in request["system"]
 
 
@@ -43,7 +43,7 @@ def test_same_language_and_empty_text_make_no_call():
 def test_a_model_without_temperature_is_asked_again_without_it_and_other_errors_surface():
     messages = Messages(reject_temperature=True)
     assert translator(messages).translate("Hello", "en", "wo") == "Nanga def?" and "temperature" not in messages.requests[0]
-    assert messages.requests[0]["thinking"] == {"type": "disabled"}                 # only the refused setting was dropped
+    assert messages.requests[0]["thinking"] == {"type": "between_tools"}            # only the refused setting was dropped
 
     class Broken:
         def create(self, **request):
@@ -84,3 +84,38 @@ def test_a_model_that_refuses_to_have_thinking_disabled_is_asked_again_with_it_l
             return SimpleNamespace(content=[SimpleNamespace(type="text", text="Nanga def?")], stop_reason="end_turn")
     messages = NoSwitch()
     assert translator(messages).translate("Hello", "en", "wo") == "Nanga def?" and messages.requests[0]["temperature"] == 0
+
+
+def test_the_first_accepted_combination_is_remembered_so_later_calls_do_not_fail_again():
+    calls = []
+
+    class Sonnet55:                                   # no temperature, thinking only through between_tools
+        def create(self, **request):
+            calls.append(sorted(k for k in request if k in ("temperature", "thinking")))
+            if "temperature" in request:
+                raise ValueError("temperature: non-default values are not supported")
+            if request.get("thinking") != {"type": "between_tools"}:
+                raise ValueError("thinking: use between_tools")
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="Nanga def?")], stop_reason="end_turn")
+    t = ClaudeTranslator(client=SimpleNamespace(messages=Sonnet55()), model="m")
+    assert t.translate("Hello", "en", "wo") == "Nanga def?" and calls == [["temperature", "thinking"], ["thinking"]]
+    assert t.translate("Thanks", "en", "wo") == "Nanga def?" and calls[2:] == [["thinking"]]      # one call, no failed attempts
+
+
+def test_the_translation_model_is_opus_not_the_agents_unless_it_is_set_or_foundry_is_used(monkeypatch):
+    from waxal_agent.mt import claude_api
+    monkeypatch.delenv("ANTHROPIC_FOUNDRY_ENDPOINT", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")                         # the agent's model
+    assert claude_api.default_model() == "claude-opus-5"
+    messages = Messages()
+    ClaudeTranslator(client=SimpleNamespace(messages=messages)).translate("Hello", "en", "wo")
+    assert messages.requests[0]["model"] == "claude-opus-5"
+    monkeypatch.setenv("WAXAL_MT_MODEL", "claude-opus-5-5")
+    messages = Messages()
+    ClaudeTranslator(client=SimpleNamespace(messages=messages)).translate("Hello", "en", "wo")
+    assert messages.requests[0]["model"] == "claude-opus-5-5"
+    monkeypatch.delenv("WAXAL_MT_MODEL")
+    monkeypatch.setenv("ANTHROPIC_FOUNDRY_ENDPOINT", "https://x.example/anthropic")      # Foundry: a model name is a deployment name
+    monkeypatch.setenv("ANTHROPIC_FOUNDRY_DEPLOYMENT", "my-deployment")
+    assert claude_api.default_model() == "my-deployment"
