@@ -49,3 +49,24 @@ def test_a_model_without_temperature_is_asked_again_without_it_and_other_errors_
             raise RuntimeError("overloaded")
     with pytest.raises(RuntimeError, match="overloaded"):
         ClaudeTranslator(client=SimpleNamespace(messages=Broken())).translate("Hello", "en", "wo")
+
+
+def test_an_empty_answer_because_the_budget_ran_out_is_asked_again_with_more_room():
+    calls = []
+
+    class Budget:
+        def create(self, **request):
+            calls.append(request["max_tokens"])
+            if len(calls) == 1:
+                return SimpleNamespace(content=[SimpleNamespace(type="thinking", text="")], stop_reason="max_tokens")
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="How are you?")], stop_reason="end_turn")
+    assert ClaudeTranslator(client=SimpleNamespace(messages=Budget()), model="m").translate("Nanga def?", "wo", "en") == "How are you?"
+    assert calls[1] == calls[0] * 4
+
+
+def test_an_empty_answer_says_why():
+    class Refusing:
+        def create(self, **request):
+            return SimpleNamespace(content=[], stop_reason="refusal")
+    with pytest.raises(ValueError, match=r"stop reason: refusal.*content: empty.*model: m"):
+        ClaudeTranslator(client=SimpleNamespace(messages=Refusing()), model="m").translate("Nanga def?", "wo", "en")

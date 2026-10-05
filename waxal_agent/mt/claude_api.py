@@ -34,18 +34,31 @@ class ClaudeTranslator:
         from coding_agent.config import _get_client, get_model
         client = self._client or _get_client()
         names = {"source": NAMES.get(source, source), "target": NAMES.get(target, target)}
-        request = {"model": self._model or get_model(), "max_tokens": min(2000, 200 + 3 * len(text)),
+        request = {"model": self._model or get_model(), "max_tokens": max(1024, 300 + 3 * len(text)),
                    "system": SYSTEM["wo" if target == "wo" else "other"].format(**names),
                    "messages": [{"role": "user", "content": text}]}
         started = time.monotonic()
+        reply = self._create(client, request)
+        result = _text_of(reply)
+        if not result and getattr(reply, "stop_reason", "") == "max_tokens":  # the budget went elsewhere (thinking): more room
+            reply = self._create(client, {**request, "max_tokens": request["max_tokens"] * 4})
+            result = _text_of(reply)
+        log.info("Claude translated %s -> %s (%.1f s, %d chars)", source, target, time.monotonic() - started, len(text))
+        if not result:
+            kinds = [getattr(b, "type", "?") for b in getattr(reply, "content", [])]
+            raise ValueError(f"Claude returned no translation of {text[:80]!r} (stop reason: {getattr(reply, 'stop_reason', '?')}, "
+                             f"content: {kinds or 'empty'}, model: {request['model']}).")
+        return result
+
+    @staticmethod
+    def _create(client, request):
         try:
-            reply = client.messages.create(temperature=0, **request)
+            return client.messages.create(temperature=0, **request)
         except Exception as e:  # a model that does not take a temperature: ask again without it
             if "temperature" not in str(e).lower():
                 raise
-            reply = client.messages.create(**request)
-        result = "".join(b.text for b in reply.content if getattr(b, "type", "") == "text").strip()
-        log.info("Claude translated %s -> %s (%.1f s, %d chars)", source, target, time.monotonic() - started, len(text))
-        if not result:
-            raise ValueError("Claude returned no translation.")
-        return result
+            return client.messages.create(**request)
+
+
+def _text_of(reply) -> str:
+    return "".join(b.text for b in reply.content if getattr(b, "type", "") == "text").strip()
