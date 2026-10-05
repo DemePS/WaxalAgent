@@ -37,6 +37,14 @@ The agent reads the files in the person's own folder (`data/users/<number or "te
 
 Only those kinds are accepted (never overwritten: `report (2).pdf`), at most 20 MB each (`WAXAL_MAX_UPLOAD_MB`) and 200 files.
 
+## ElevenLabs (recognition and voice)
+
+Instead of Soynade (for example when its credits are used up): `ELEVENLABS_API_KEY`, then `WAXAL_STT=elevenlabs` (Wolof speech to
+Wolof text, translated to English by Claude) and/or `WAXAL_TTS=elevenlabs` (the Wolof voice, model `eleven_v4`, voice
+`ELEVENLABS_VOICE_ID`). Try each on its own first: `uv run python scripts/check_api.py eleven-speak "Nanga def"` and
+`eleven-listen recording.wav`. If ElevenLabs rejects a language field, the error says so: set `ELEVENLABS_TTS_LANGUAGE` or
+`ELEVENLABS_STT_LANGUAGE` (an empty value leaves the field out).
+
 ## Live sandbox (Docker + your own WhatsApp)
 
 `docker compose up --build` runs the server in a container (test page on localhost), and `docs/SANDBOX.md` walks through the
@@ -44,7 +52,7 @@ real models and a WhatsApp test with Meta's free test number and a temporary pub
 
 ## Soynade's hosted API (nothing is hosted here)
 
-All speech and translation go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
+Translation is done by Claude by default (`WAXAL_MT=soynade` uses Soynade's translation route instead). Speech recognition and the Wolof voice go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
 created in their console), called directly over HTTPS: no chat client, no model downloaded or run here.
 
 | Stage | Route and model | Status |

@@ -1,0 +1,86 @@
+from types import SimpleNamespace
+
+import pytest
+
+from waxal_agent.mt.claude_api import ClaudeTranslator
+
+
+class Messages:
+    def __init__(self, answer="Nanga def?", reject_temperature=False):
+        self.answer, self.reject_temperature, self.requests = answer, reject_temperature, []
+
+    def create(self, **request):
+        if self.reject_temperature and "temperature" in request:
+            raise ValueError("temperature is not supported by this model")
+        self.requests.append(request)
+        return SimpleNamespace(content=[SimpleNamespace(type="text", text=f"  {self.answer} \n")])
+
+
+def translator(messages, model="claude-test"):
+    return ClaudeTranslator(client=SimpleNamespace(messages=messages), model=model)
+
+
+def test_english_to_wolof_is_asked_for_in_standard_spelling_at_temperature_zero():
+    messages = Messages()
+    assert translator(messages).translate("How are you?", "en", "wo") == "Nanga def?"
+    request = messages.requests[0]
+    assert request["temperature"] == 0 and request["thinking"] == {"type": "disabled"} and request["model"] == "claude-test" and request["messages"] == [{"role": "user", "content": "How are you?"}]
+    assert "from English into Wolof" in request["system"] and "CAADA" in request["system"] and "translation only" in request["system"]
+
+
+def test_wolof_to_english_allows_for_speech_recognition_mistakes():
+    messages = Messages("How are you?")
+    assert translator(messages).translate("Nanga def?", "wo", "en") == "How are you?"
+    assert "from Wolof into English" in messages.requests[0]["system"] and "speech recognition" in messages.requests[0]["system"]
+
+
+def test_same_language_and_empty_text_make_no_call():
+    messages = Messages()
+    t = translator(messages)
+    assert t.translate("Nanga def?", "wo", "wo") == "Nanga def?" and t.translate("  ", "en", "wo") == "  " and messages.requests == []
+
+
+def test_a_model_without_temperature_is_asked_again_without_it_and_other_errors_surface():
+    messages = Messages(reject_temperature=True)
+    assert translator(messages).translate("Hello", "en", "wo") == "Nanga def?" and "temperature" not in messages.requests[0]
+    assert messages.requests[0]["thinking"] == {"type": "disabled"}                 # only the refused setting was dropped
+
+    class Broken:
+        def create(self, **request):
+            raise RuntimeError("overloaded")
+    with pytest.raises(RuntimeError, match="overloaded"):
+        ClaudeTranslator(client=SimpleNamespace(messages=Broken())).translate("Hello", "en", "wo")
+
+
+def test_an_empty_answer_because_the_budget_ran_out_is_asked_again_with_more_room():
+    calls = []
+
+    class Budget:
+        def create(self, **request):
+            calls.append(request["max_tokens"])
+            if len(calls) == 1:
+                return SimpleNamespace(content=[SimpleNamespace(type="thinking", text="")], stop_reason="max_tokens")
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="How are you?")], stop_reason="end_turn")
+    assert ClaudeTranslator(client=SimpleNamespace(messages=Budget()), model="m").translate("Nanga def?", "wo", "en") == "How are you?"
+    assert calls[1] == calls[0] * 4
+
+
+def test_an_empty_answer_says_why():
+    class Refusing:
+        def create(self, **request):
+            return SimpleNamespace(content=[], stop_reason="refusal")
+    with pytest.raises(ValueError, match=r"stop reason: refusal.*content: empty.*model: m"):
+        ClaudeTranslator(client=SimpleNamespace(messages=Refusing()), model="m").translate("Nanga def?", "wo", "en")
+
+
+def test_a_model_that_refuses_to_have_thinking_disabled_is_asked_again_with_it_left_alone():
+    class NoSwitch:
+        requests = []
+
+        def create(self, **request):
+            if "thinking" in request:
+                raise ValueError("thinking cannot be disabled for this model")
+            self.requests.append(request)
+            return SimpleNamespace(content=[SimpleNamespace(type="text", text="Nanga def?")], stop_reason="end_turn")
+    messages = NoSwitch()
+    assert translator(messages).translate("Hello", "en", "wo") == "Nanga def?" and messages.requests[0]["temperature"] == 0

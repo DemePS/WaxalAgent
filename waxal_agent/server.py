@@ -3,6 +3,7 @@
 import base64
 import hmac
 import json
+import logging
 import os
 from pathlib import Path
 
@@ -16,6 +17,8 @@ from .files import MAX_BYTES, FileRefused, UserFiles
 from .pipeline import Pipeline, TurnResult
 from .soynade_api import SoynadeError
 from .whatsapp import WhatsAppBot, signature_ok
+
+log = logging.getLogger("waxal.server")
 
 STATIC = Path(__file__).parent / "static"
 MAX_RECORDING_BYTES = 10 * 1024 * 1024
@@ -63,6 +66,9 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
                 return as_json(pipeline.from_audio(user_of(request), data, speak=request.query_params.get("speak") != "0"))
             except AudioError as e:
                 raise HTTPException(400, str(e))
+            except Exception as e:  # a failing service (translation, recognition...): the page shows why, the log has the trace
+                log.exception("The turn failed")
+                raise HTTPException(502, f"{type(e).__name__}: {e}"[:500])
 
         @app.post("/api/transcribe")
         async def transcribe(request: Request):
@@ -84,7 +90,11 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
         async def text(request: Request, body: TextIn):
             """Wolof typed instead of spoken (for testing without a microphone)."""
             check(request)
-            return as_json(pipeline.from_wolof(user_of(request), body.text, speak=request.query_params.get("speak") != "0"))
+            try:
+                return as_json(pipeline.from_wolof(user_of(request), body.text, speak=request.query_params.get("speak") != "0"))
+            except Exception as e:
+                log.exception("The turn failed")
+                raise HTTPException(502, f"{type(e).__name__}: {e}"[:500])
 
         @app.post("/api/speak")
         async def speak(request: Request, body: TextIn):
