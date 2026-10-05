@@ -13,7 +13,7 @@ Needs Docker Desktop (WSL 2 on Windows). The image is small: no models.
 
 ```bash
 git clone https://github.com/DemePS/WaxalAgent && cd WaxalAgent
-cp .env.example .env              # then edit: ANTHROPIC_API_KEY, WAXAL_TOKEN (any long random string)
+cp example.env .env              # then edit: ANTHROPIC_API_KEY, WAXAL_TOKEN (any long random string)
 docker compose up --build         # the stand-ins: starts in a minute, no models
 ```
 
