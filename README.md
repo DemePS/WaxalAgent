@@ -48,7 +48,7 @@ A changed file in S3 replaces the local copy, and a file removed from S3 is remo
 (`waxal_agent/office_tools.py`, added with CodeAgent's `register_tool`), Word `.docx` (`read_word`) and PowerPoint `.pptx` (`read_powerpoint`) files.
 Old `.doc` / `.ppt` files and other kinds are in the library but the agent cannot read them (save them as `.docx` / `.pptx` or PDF). Subfolders are kept. A failed S3 call changes nothing and is logged. Local files that are not in S3 are removed by the sync (use `DEVELOPER_MODE=1` to work with local files).
 
-**Without S3:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
+**Without S3:** an administrator adds documents by copying them into the library folder, or by sending a document or photo on WhatsApp
 from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.
 
 ## ElevenLabs (recognition and voice)
