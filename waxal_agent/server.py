@@ -13,6 +13,7 @@ from fastapi.responses import FileResponse, PlainTextResponse
 from pydantic import BaseModel
 
 from .audio import AudioError
+from .files import MAX_BYTES, FileRefused, UserFiles
 from .pipeline import Pipeline, TurnResult
 from .soynade_api import SoynadeError
 from .whatsapp import WhatsAppBot, signature_ok
@@ -34,7 +35,7 @@ def as_json(result: TurnResult) -> dict:
 
 
 def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | None = None,
-               test_page: bool = True) -> FastAPI:
+               test_page: bool = True, files: UserFiles | None = None) -> FastAPI:
     """`token`: when set (WAXAL_TOKEN), every /api call must send it in the X-Token header.
     `test_page`: False leaves only the WhatsApp webhook (a public server must not offer the test page)."""
     app = FastAPI(title="WaxalAgent", docs_url=None, redoc_url=None, openapi_url=None)
@@ -101,6 +102,42 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             check(request)
             wav, notes = await run_in_threadpool(pipeline.speak_text, body.text)
             return {"audio": base64.b64encode(wav).decode("ascii"), "audio_type": "audio/wav", "notes": notes}
+
+        @app.post("/api/stop")
+        def stop(request: Request):
+            """Stop the agent's running turn (the page's Stop button)."""
+            check(request)
+            return {"stopped": pipeline.stop()}
+
+        @app.get("/api/files")
+        def list_files(request: Request):
+            check(request)
+            return {"files": files.list(user_of(request)) if files else [], "enabled": files is not None}
+
+        @app.post("/api/files")
+        async def upload_file(request: Request, name: str):
+            """The body is the file, `name` its name: it lands in the person's folder, where the agent reads it."""
+            check(request)
+            if files is None:
+                raise HTTPException(404, "Uploads are not enabled.")
+            data = await request.body()
+            if len(data) > MAX_BYTES:
+                raise HTTPException(413, "The file is too big.")
+            try:
+                return {"name": files.save(user_of(request), name, data), "files": files.list(user_of(request))}
+            except FileRefused as e:
+                raise HTTPException(400, str(e))
+
+        @app.delete("/api/files")
+        def delete_file(request: Request, name: str):
+            check(request)
+            if files is None:
+                raise HTTPException(404, "Uploads are not enabled.")
+            try:
+                files.delete(user_of(request), name)
+            except FileRefused as e:
+                raise HTTPException(400, str(e))
+            return {"files": files.list(user_of(request))}
 
         @app.get("/")
         def index():

@@ -51,7 +51,11 @@ def main() -> None:
         if not config.allowed:
             print("Warning: WAXAL_ALLOWED is empty: nobody can use the agent yet.", file=sys.stderr)
     # With WhatsApp on a public server, the test page is only offered when a token protects it.
-    app = create_app(pipeline, token_from_env(), bot, test_page=(bot is None or token_from_env() is not None))
+    from .files import UserFiles
+    user_files = UserFiles(args.data)
+    if bot is not None:
+        bot.files = user_files
+    app = create_app(pipeline, token_from_env(), bot, test_page=(bot is None or token_from_env() is not None), files=user_files)
     if not os.environ.get("WAXAL_TOKEN") and args.host not in ("127.0.0.1", "localhost"):
         print("Warning: listening beyond this PC without WAXAL_TOKEN set: anyone who can reach it can use the agent.",
               file=sys.stderr)

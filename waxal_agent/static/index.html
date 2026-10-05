@@ -22,6 +22,12 @@
   .label { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:8px; }
   .label:first-child { margin-top:0; } .turn p { margin:2px 0 0; white-space:pre-wrap; }
   .only { display:block; margin:10px 0 0; color:var(--muted); font-size:.92rem; } .only input { margin-right:6px; }
+  #files { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:0 0 16px; }
+  #files h2 { font-size:1rem; margin:0 0 6px; } #files ul { list-style:none; margin:8px 0 0; padding:0; }
+  #files li { display:flex; justify-content:space-between; gap:8px; align-items:center; padding:4px 0; border-top:1px solid var(--line); }
+  #files li span.size { color:var(--muted); font-size:.85rem; margin-left:6px; } #files .empty { color:var(--muted); font-size:.92rem; margin:6px 0 0; }
+  #cancel { margin:0 0 12px; border-color:var(--danger); color:var(--danger); }
+  #drop.over { outline:2px dashed var(--accent); }
   .note { color:var(--danger); font-size:.9rem; } audio { width:100%; margin-top:10px; } #status { color:var(--muted); min-height:1.4em; }
 </style>
 </head>
@@ -33,13 +39,22 @@
   <label class="only"><input type="checkbox" id="only"> Transcribe only: just show what was heard (no translation, no agent)</label>
   <form id="typed"><input type="text" id="line" placeholder="or type Wolof here" autocomplete="off"><button class="small">Send</button></form>
   <div id="status" role="status"></div>
+  <button id="cancel" class="small" type="button" hidden>Stop</button>
+  <section id="files" hidden>
+    <h2>My files</h2>
+    <div id="drop"><input type="file" id="pick" multiple accept=".pdf,.png,.jpg,.jpeg,.webp,.xlsx,.xlsm,.csv,.txt,.md,.json">
+      <span class="empty">or drop files here: the agent reads them from your folder.</span></div>
+    <ul id="filelist"></ul>
+    <div id="filestatus" class="note" role="status"></div>
+  </section>
   <div id="turns"></div>
 </main>
 <script>
 const token = new URLSearchParams(location.search).get('token') || '';
 const headers = (extra = {}) => ({ ...(token ? { 'x-token': token } : {}), ...extra });
 const talk = document.getElementById('talk'), statusEl = document.getElementById('status'), turns = document.getElementById('turns');
-let recorder = null, chunks = [], stream = null;
+let recorder = null, chunks = [], stream = null, startedAt = 0, discard = false, holding = false;
+const MIN_MS = 800; // a click is not a message
 
 function show(r) {
   const div = document.createElement('div'); div.className = 'turn';
@@ -54,46 +69,111 @@ function show(r) {
   return div;
 }
 
+// Sound: an AudioContext started by the person's own click keeps playing when the tab is in the background (an <audio>
+// element started later by the page is often blocked there). If it cannot play, the tab title says the answer is ready and
+// the audio plays when the tab is shown again.
+let audioCtx = null, pendingAudio = null;
+const baseTitle = document.title;
+function unlockAudio() {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch { /* falls back to <audio> */ }
+}
+async function playVoice(el, base64) {
+  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+  try {
+    if (!audioCtx || audioCtx.state !== 'running') throw new Error('audio locked');
+    const buffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
+    const source = audioCtx.createBufferSource(); source.buffer = buffer; source.connect(audioCtx.destination); source.start();
+    return;
+  } catch { /* try the element */ }
+  try { await el.play(); }
+  catch { pendingAudio = el; if (document.hidden) document.title = '🔊 Answer ready - ' + baseTitle; }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { document.title = baseTitle;
+  if (pendingAudio) { pendingAudio.play().catch(() => {}); pendingAudio = null; } } });
+
+let controller = null;
+const cancelBtn = document.getElementById('cancel');
+function working(on) { talk.disabled = on; cancelBtn.hidden = !on; }
+cancelBtn.addEventListener('click', () => { if (controller) controller.abort(); fetch('/api/stop', { method: 'POST', headers: headers() }).catch(() => {});
+  statusEl.textContent = 'Stopped.'; });
+
 // The texts are shown first; the voice is asked for afterwards, so a slow or failing speech service never delays the answer.
-async function addVoice(div, text) {
+async function addVoice(div, text, signal) {
   const note = document.createElement('p'); note.className = 'note'; note.textContent = 'Preparing the voice…'; div.append(note);
   try {
-    const res = await fetch('/api/speak', { method: 'POST', headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify({ text }) });
+    const res = await fetch('/api/speak', { method: 'POST', signal, headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify({ text }) });
     const r = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(r.detail || `Error ${res.status}`);
     if (!r.audio) throw new Error((r.notes || []).join(' ') || 'No voice.');
     const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`;
-    note.replaceWith(a); a.play().catch(() => {});
-  } catch (e) { note.textContent = 'No voice: ' + e.message; }
+    note.replaceWith(a); await playVoice(a, r.audio);
+  } catch (e) { note.textContent = e.name === 'AbortError' ? 'Voice stopped.' : 'No voice: ' + e.message; }
 }
 
 async function send(path, body, type) {
-  talk.disabled = true; statusEl.textContent = 'Working…';
+  working(true); statusEl.textContent = 'Working…'; controller = new AbortController();
   try {
-    const res = await fetch(path + (path.includes('?') ? '&' : '?') + 'speak=0', { method: 'POST', headers: headers({ 'content-type': type }), body });
+    const res = await fetch(path + (path.includes('?') ? '&' : '?') + 'speak=0', { method: 'POST', signal: controller.signal, headers: headers({ 'content-type': type }), body });
     const data = await res.json().catch(() => ({}));
     if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
     const div = show(data); statusEl.textContent = '';
-    if (data.reply_wolof) addVoice(div, data.reply_wolof);
-  } catch (e) { statusEl.textContent = e.message; } finally { talk.disabled = false; }
+    if (data.reply_wolof) { cancelBtn.hidden = false; await addVoice(div, data.reply_wolof, controller.signal); }
+  } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = e.message; } finally { working(false); controller = null; }
 }
+
+const filesBox = document.getElementById('files'), fileList = document.getElementById('filelist'), fileStatus = document.getElementById('filestatus');
+function renderFiles(files) {
+  fileList.replaceChildren(...files.map(f => { const li = document.createElement('li');
+    const label = document.createElement('span'); label.textContent = f.name;
+    const size = document.createElement('span'); size.className = 'size'; size.textContent = f.size > 1048576 ? (f.size / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(f.size / 1024)) + ' KB'; label.append(size);
+    const del = document.createElement('button'); del.className = 'small'; del.type = 'button'; del.textContent = 'Delete';
+    del.onclick = async () => { const r = await fetch('/api/files?name=' + encodeURIComponent(f.name), { method: 'DELETE', headers: headers() });
+      const d = await r.json().catch(() => ({})); r.ok ? renderFiles(d.files) : fileStatus.textContent = d.detail || `Error ${r.status}`; };
+    li.append(label, del); return li; }));
+}
+async function loadFiles() {
+  try { const r = await fetch('/api/files', { headers: headers() }); const d = await r.json();
+    if (d.enabled) { filesBox.hidden = false; renderFiles(d.files); } } catch { /* the list is a convenience */ }
+}
+async function uploadFiles(list) {
+  fileStatus.textContent = '';
+  for (const file of list) {
+    fileStatus.style.color = 'var(--muted)'; fileStatus.textContent = `Uploading ${file.name}…`;
+    const r = await fetch('/api/files?name=' + encodeURIComponent(file.name), { method: 'POST', headers: headers({ 'content-type': 'application/octet-stream' }), body: file });
+    const d = await r.json().catch(() => ({}));
+    if (!r.ok) { fileStatus.style.color = 'var(--danger)'; fileStatus.textContent = `${file.name}: ${d.detail || 'Error ' + r.status}`; return; }
+    renderFiles(d.files);
+  }
+  fileStatus.textContent = '';
+}
+document.getElementById('pick').addEventListener('change', e => { uploadFiles([...e.target.files]); e.target.value = ''; });
+const drop = document.getElementById('drop');
+['dragenter', 'dragover'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.add('over'); }));
+['dragleave', 'drop'].forEach(t => drop.addEventListener(t, e => { e.preventDefault(); drop.classList.remove('over'); }));
+drop.addEventListener('drop', e => uploadFiles([...e.dataTransfer.files]));
+loadFiles();
 
 async function start() {
   if (recorder) return;
   try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
   catch { statusEl.textContent = 'The microphone is not available (allow it, and use https or localhost).'; return; }
+  if (!holding) { stream.getTracks().forEach(t => t.stop()); stream = null; return; } // released before the microphone was ready: a click
   chunks = []; recorder = new MediaRecorder(stream);
   recorder.ondataavailable = e => chunks.push(e.data);
   recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: recorder.mimeType }); recorder = null;
-    if (blob.size > 1000) send(document.getElementById('only').checked ? '/api/transcribe' : '/api/turn', blob, blob.type || 'application/octet-stream'); else statusEl.textContent = 'Too short: hold the button while you speak.'; };
-  recorder.start(); talk.classList.add('rec'); talk.textContent = 'Listening… release to send'; statusEl.textContent = '';
+    if (discard) { statusEl.textContent = 'Cancelled: nothing was sent.'; return; }
+    if (Date.now() - startedAt < MIN_MS || blob.size < 1000) { statusEl.textContent = 'Too short, nothing was sent: hold the button while you speak.'; return; }
+    send(document.getElementById('only').checked ? '/api/transcribe' : '/api/turn', blob, blob.type || 'application/octet-stream'); };
+  discard = false; startedAt = Date.now();
+  recorder.start(); talk.classList.add('rec'); talk.textContent = 'Listening… release to send, move away to cancel'; statusEl.textContent = '';
 }
-function stop() { if (recorder && recorder.state === 'recording') recorder.stop(); talk.classList.remove('rec'); talk.textContent = 'Hold to talk'; }
+function stop(cancel) { discard = !!cancel; if (recorder && recorder.state === 'recording') recorder.stop(); talk.classList.remove('rec'); talk.textContent = 'Hold to talk'; }
 
-talk.addEventListener('pointerdown', e => { e.preventDefault(); start(); });
-['pointerup', 'pointerleave', 'pointercancel'].forEach(t => talk.addEventListener(t, stop));
+talk.addEventListener('pointerdown', e => { e.preventDefault(); unlockAudio(); holding = true; start(); });
+talk.addEventListener('pointerup', () => { holding = false; stop(false); });
+['pointerleave', 'pointercancel'].forEach(t => talk.addEventListener(t, () => { holding = false; stop(true); }));
 document.getElementById('typed').addEventListener('submit', e => { e.preventDefault();
-  const line = document.getElementById('line'); const text = line.value.trim(); if (!text) return; line.value = '';
+  unlockAudio(); const line = document.getElementById('line'); const text = line.value.trim(); if (!text) return; line.value = '';
   send('/api/text', JSON.stringify({ text }), 'application/json'); });
 </script>
 </body>

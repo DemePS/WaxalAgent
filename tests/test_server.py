@@ -94,6 +94,10 @@ def test_the_page_gets_the_texts_first_and_the_voice_afterwards():
     assert voice["audio"] and voice["notes"] == []
 
 
+def test_the_stop_button_reaches_the_agent():
+    c = client()
+    assert c.post("/api/stop").json() == {"stopped": False}     # the stand-in agent has no turn to stop
+
 def test_a_failing_service_gives_the_page_a_message_not_a_crash():
     class Broken:
         def translate(self, text, source, target):

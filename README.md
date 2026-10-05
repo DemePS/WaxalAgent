@@ -29,6 +29,14 @@ back) can be checked before the real models exist. ffmpeg must be installed (it 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
 
+## The person's files
+
+The agent reads the files in the person's own folder (`data/users/<number or "test">/`). They can put files there themselves:
+- **Test page:** a "My files" box: pick or drop PDFs, images, Excel, CSV or text files; each one can be deleted.
+- **WhatsApp:** a document or photo sent in the chat is saved to the sender's folder, and the answer says so.
+
+Only those kinds are accepted (never overwritten: `report (2).pdf`), at most 20 MB each (`WAXAL_MAX_UPLOAD_MB`) and 200 files.
+
 ## ElevenLabs (recognition and voice)
 
 Instead of Soynade (for example when its credits are used up): `ELEVENLABS_API_KEY`, then `WAXAL_STT=elevenlabs` (Wolof speech to
