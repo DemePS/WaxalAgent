@@ -96,15 +96,15 @@ def test_files_the_sync_did_not_add_are_never_touched_or_overwritten(setup):
     assert names(library) == ["Manual.pdf"]                                         # only what the sync added is removed
 
 
-def test_unusable_and_oversized_files_are_skipped_with_the_reason(setup, monkeypatch):
+def test_every_kind_of_file_is_copied_and_only_oversized_ones_are_skipped_with_the_reason(setup, monkeypatch):
     drive, library, sync = setup
     monkeypatch.setattr(files_module, "MAX_BYTES", 10)
-    drive.put("1", "program.exe", "application/octet-stream")
+    drive.put("1", "contract.docx", "application/octet-stream", b"word")
     drive.put("2", "Big.pdf", size=11)
-    drive.put("3", "Fine.pdf", content=b"ok")
+    drive.put("3", "../../evil name?.pdf", content=b"ok")                           # a name is never a path
     result = sync.sync_once()
-    assert names(library) == ["Fine.pdf"] and result["added"] == 1
-    assert any("program.exe" in s for s in result["skipped"]) and any("too big" in s for s in result["skipped"])
+    assert names(library) == ["contract.docx", "evil name_.pdf"] and result["added"] == 2
+    assert len(result["skipped"]) == 1 and "Big.pdf" in result["skipped"][0] and "too big" in result["skipped"][0]
 
 
 def test_a_failed_listing_changes_nothing_and_is_reported(setup):

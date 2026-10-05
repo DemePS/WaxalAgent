@@ -6,7 +6,7 @@ mirrors that folder into the local library (data/documents) that the agent reads
     WAXAL_DRIVE_INTERVAL          seconds between two syncs (default 600)
 
 Share the folder with the service account's e-mail address (viewer is enough). Only the files directly in the folder are used
-(subfolders are ignored). The files are copied as they are: a kind the agent cannot read (PDF, image, Excel, CSV, text) or a file over
+(subfolders are ignored). Every file is copied as it is (whatever its kind); a file over
 WAXAL_MAX_UPLOAD_MB is skipped and logged. A change in Drive replaces the local file; a file removed or
 trashed in Drive is removed locally. Files that were not put there by the sync are never touched. A failed listing changes nothing.
 """
@@ -16,12 +16,13 @@ from __future__ import annotations
 import json
 import logging
 import os
+import re
 import threading
 import time
 from pathlib import Path
 
 from . import files as files_module
-from .files import FileRefused, Library, safe_name
+from .files import FileRefused, Library
 
 log = logging.getLogger("waxal.drive")
 
@@ -103,7 +104,11 @@ class DriveSync:
 
     @staticmethod
     def local_name(item: dict) -> str:
-        return safe_name(item["name"])  # FileRefused: a kind the agent cannot read
+        """The file name as it is (any kind of file: the agent's read_file reads any), made safe as a name: never a path."""
+        name = re.sub(r"[^\w.()\- ]", "_", item["name"].replace("\\", "/").rsplit("/", 1)[-1]).strip(". ")[-120:]
+        if not name:
+            raise FileRefused("no usable name")
+        return name
 
     def sync_once(self) -> dict:
         """Mirror the Drive folder now. Returns {"added", "updated", "removed", "skipped": [...]}; raises DriveError when the folder
