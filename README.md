@@ -41,14 +41,10 @@ conversation. Nobody but an administrator adds documents.
 3. Set `WAXAL_DRIVE_FOLDER` (the folder id: the last part of its address) and `WAXAL_DRIVE_CREDENTIALS` (the key file's path; or
    `WAXAL_DRIVE_CREDENTIALS_JSON` with the JSON itself). `WAXAL_DRIVE_INTERVAL` (seconds, default 600) is the time between syncs.
 
-The person who looks after the documents only works in Drive: give them [docs/DOCUMENT_OWNER.md](docs/DOCUMENT_OWNER.md).
-The test page shows the library with a **Sync now** button (no upload, no delete: Drive is the only place) and lists what was skipped, with the reason.
-- A change in Drive replaces the local file; a removed or trashed file disappears; a renamed or moved file follows.
-- Subfolders are mirrored as subfolders (5 levels at most). Google Docs and Slides become PDF, Google Sheets become xlsx, Word (.docx) and
-  PowerPoint (.pptx) files become text files (`Report.docx.txt`). Other files must be a kind the agent can read (PDF, images, Excel, CSV, text), at
-  most `WAXAL_MAX_UPLOAD_MB` (20). Old .doc / .ppt files are skipped with a message.
-- A failed Drive call changes nothing, and a folder that suddenly looks empty removes nothing (the page shows why). Files that the sync did not add are
-  never touched. Documents sent on WhatsApp are refused.
+The test page then shows the library with a **Sync now** button (no upload, no delete: Drive is the only place). A change in Drive replaces
+the local file, a removed or trashed file disappears, Google Docs and Slides become PDF and Google Sheets become xlsx. Only the files
+directly in the folder are used (not subfolders), and only kinds the agent can read (PDF, images, Excel, CSV, text), at most
+`WAXAL_MAX_UPLOAD_MB` (20). A failed Drive call changes nothing and is shown on the page. Documents sent on WhatsApp are refused.
 
 **Without Drive:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
 from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.
