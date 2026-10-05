@@ -104,7 +104,7 @@ class DriveSync:
 
     @staticmethod
     def local_name(item: dict) -> str:
-        """The file name as it is (any kind of file: the agent's read_file reads any), made safe as a name: never a path."""
+        """The file name as it is (any kind of file is copied), made safe as a name: never a path."""
         name = re.sub(r"[^\w.()\- ]", "_", item["name"].replace("\\", "/").rsplit("/", 1)[-1]).strip(". ")[-120:]
         if not name:
             raise FileRefused("no usable name")

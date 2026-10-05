@@ -41,8 +41,9 @@ conversation. Nobody but an administrator adds documents.
 3. Set `WAXAL_DRIVE_FOLDER` (the folder id: the last part of its address) and `WAXAL_DRIVE_CREDENTIALS` (the key file's path; or
    `WAXAL_DRIVE_CREDENTIALS_JSON` with the JSON itself). `WAXAL_DRIVE_INTERVAL` (seconds, default 600) is the time between syncs.
 
-A change in Drive replaces the local file, and a file removed or trashed in Drive is removed locally. Every file is copied as it is, whatever its kind
-(the agent's `read_file` reads any file); a file over `WAXAL_MAX_UPLOAD_MB` (20) is skipped and logged. Only the files directly in the folder are used. A failed Drive call changes nothing and is logged.
+A change in Drive replaces the local file, and a file removed or trashed in Drive is removed locally. Every file is copied as it is, whatever its kind; a file over
+`WAXAL_MAX_UPLOAD_MB` (20) is skipped and logged. The agent's tools read PDF (`read_pdf`), Excel (`read_excel`), images (`view_image`) and UTF-8 text (`read_file`):
+another kind, such as a Word file, is in the library but the agent cannot read it. Only the files directly in the folder are used. A failed Drive call changes nothing and is logged.
 Files that the sync did not add are never touched.
 
 **Without Drive:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
