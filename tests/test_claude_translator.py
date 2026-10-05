@@ -100,3 +100,22 @@ def test_the_first_accepted_combination_is_remembered_so_later_calls_do_not_fail
     t = ClaudeTranslator(client=SimpleNamespace(messages=Sonnet55()), model="m")
     assert t.translate("Hello", "en", "wo") == "Nanga def?" and calls == [["temperature", "thinking"], ["thinking"]]
     assert t.translate("Thanks", "en", "wo") == "Nanga def?" and calls[2:] == [["thinking"]]      # one call, no failed attempts
+
+
+def test_the_translation_model_is_opus_not_the_agents_unless_it_is_set_or_foundry_is_used(monkeypatch):
+    from waxal_agent.mt import claude_api
+    monkeypatch.delenv("ANTHROPIC_FOUNDRY_ENDPOINT", raising=False)
+    monkeypatch.setenv("ANTHROPIC_API_KEY", "k")
+    monkeypatch.setenv("ANTHROPIC_MODEL", "claude-sonnet-5-5")                         # the agent's model
+    assert claude_api.default_model() == "claude-opus-5"
+    messages = Messages()
+    ClaudeTranslator(client=SimpleNamespace(messages=messages)).translate("Hello", "en", "wo")
+    assert messages.requests[0]["model"] == "claude-opus-5"
+    monkeypatch.setenv("WAXAL_MT_MODEL", "claude-opus-5-5")
+    messages = Messages()
+    ClaudeTranslator(client=SimpleNamespace(messages=messages)).translate("Hello", "en", "wo")
+    assert messages.requests[0]["model"] == "claude-opus-5-5"
+    monkeypatch.delenv("WAXAL_MT_MODEL")
+    monkeypatch.setenv("ANTHROPIC_FOUNDRY_ENDPOINT", "https://x.example/anthropic")      # Foundry: a model name is a deployment name
+    monkeypatch.setenv("ANTHROPIC_FOUNDRY_DEPLOYMENT", "my-deployment")
+    assert claude_api.default_model() == "my-deployment"

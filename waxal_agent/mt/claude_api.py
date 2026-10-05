@@ -2,7 +2,8 @@
 
 One short instruction, temperature 0, and the translation alone as the answer. For Wolof the instruction asks for standard
 (CAADA) spelling and plain short sentences, as they would be said aloud, and faithful numbers, names and references.
-WAXAL_MT=soynade uses Soynade's /translations route instead; WAXAL_MT_MODEL picks another Claude model than the agent's.
+WAXAL_MT=soynade uses Soynade's /translations route instead. The model is Opus (DEFAULT_MODEL), not the agent's (Sonnet): WAXAL_MT_MODEL picks
+another one. On Foundry the model is a deployment name, so there it is the agent's deployment unless WAXAL_MT_MODEL names the Opus one.
 """
 
 import logging
@@ -21,6 +22,14 @@ SYSTEM = {
               "mistakes: translate what was meant. Keep numbers, names, dates and article references faithful. Reply with the "
               "translation only: no quotes, no notes, no explanation."),
 }
+
+
+DEFAULT_MODEL = "claude-opus-5"  # the translation model on Anthropic's API (the agent's default is Sonnet)
+
+
+def default_model() -> str:
+    from coding_agent.config import get_model, uses_anthropic_api
+    return DEFAULT_MODEL if uses_anthropic_api() else get_model()
 
 
 # Tried in this order. Sonnet 5.5 turns thinking off with {"type": "between_tools"} (no other field) and takes no temperature; other
@@ -44,10 +53,10 @@ class ClaudeTranslator:
     def translate(self, text: str, source: str, target: str) -> str:
         if source == target or not text.strip():
             return text
-        from coding_agent.config import _get_client, get_model
+        from coding_agent.config import _get_client
         client = self._client or _get_client()
         names = {"source": NAMES.get(source, source), "target": NAMES.get(target, target)}
-        request = {"model": self._model or get_model(), "max_tokens": max(1024, 300 + 3 * len(text)),
+        request = {"model": self._model or default_model(), "max_tokens": max(1024, 300 + 3 * len(text)),
                    "system": SYSTEM["wo" if target == "wo" else "other"].format(**names),
                    "messages": [{"role": "user", "content": text}]}
         started = time.monotonic()
