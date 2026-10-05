@@ -6,8 +6,8 @@ mirrors that folder into the local library (data/documents) that the agent reads
     WAXAL_DRIVE_INTERVAL          seconds between two syncs (default 600)
 
 Share the folder with the service account's e-mail address (viewer is enough). Only the files directly in the folder are used
-(subfolders are ignored). Google Docs and Slides become PDF, Google Sheets become xlsx; other files must be a kind the agent can
-read (PDF, image, Excel, CSV, text) and at most WAXAL_MAX_UPLOAD_MB. A change in Drive replaces the local file; a file removed or
+(subfolders are ignored). The files are copied as they are: a kind the agent cannot read (PDF, image, Excel, CSV, text) or a file over
+WAXAL_MAX_UPLOAD_MB is skipped and logged. A change in Drive replaces the local file; a file removed or
 trashed in Drive is removed locally. Files that were not put there by the sync are never touched. A failed listing changes nothing.
 """
 
@@ -28,11 +28,6 @@ log = logging.getLogger("waxal.drive")
 API = "https://www.googleapis.com/drive/v3"
 SCOPES = ["https://www.googleapis.com/auth/drive.readonly"]
 FOLDER = "application/vnd.google-apps.folder"
-EXPORTS = {  # Google's own formats cannot be downloaded as they are: they are exported
-    "application/vnd.google-apps.document": ("application/pdf", ".pdf"),
-    "application/vnd.google-apps.presentation": ("application/pdf", ".pdf"),
-    "application/vnd.google-apps.spreadsheet": ("application/vnd.openxmlformats-officedocument.spreadsheetml.sheet", ".xlsx"),
-}
 MANIFEST = ".drive-manifest.json"  # which local file came from which Drive file (kept in the library folder)
 
 
@@ -91,8 +86,6 @@ class DriveSync:
                 return found
 
     def _content(self, item: dict) -> bytes:
-        if item["mimeType"] in EXPORTS:
-            return self._get(f"files/{item['id']}/export", mimeType=EXPORTS[item["mimeType"]][0]).content
         return self._get(f"files/{item['id']}", alt="media").content
 
     # --- the mirror
@@ -110,11 +103,7 @@ class DriveSync:
 
     @staticmethod
     def local_name(item: dict) -> str:
-        name = item["name"]
-        extension = EXPORTS.get(item["mimeType"], ("", ""))[1]
-        if extension and not name.lower().endswith(extension):
-            name += extension
-        return safe_name(name)  # FileRefused: a kind the agent cannot read
+        return safe_name(item["name"])  # FileRefused: a kind the agent cannot read
 
     def sync_once(self) -> dict:
         """Mirror the Drive folder now. Returns {"added", "updated", "removed", "skipped": [...]}; raises DriveError when the folder

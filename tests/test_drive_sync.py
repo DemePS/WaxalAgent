@@ -6,7 +6,7 @@ from waxal_agent import files as files_module
 from waxal_agent.drive_sync import MANIFEST, DriveError, DriveSync
 from waxal_agent.files import Library
 
-PDF, DOC, SHEET = "application/pdf", "application/vnd.google-apps.document", "application/vnd.google-apps.spreadsheet"
+PDF = "application/pdf"
 
 
 class Response:
@@ -18,7 +18,7 @@ class Response:
 
 
 class FakeDrive:
-    """A Google Drive folder: files by id; serves the listing, downloads and exports like the real API."""
+    """A Google Drive folder: files by id; serves the listing and the downloads like the real API."""
 
     def __init__(self):
         self.files, self.calls, self.fail_listing = {}, [], False
@@ -35,9 +35,6 @@ class FakeDrive:
                 return Response(403, text="The caller does not have permission")
             page = [{k: v for k, v in f.items() if k != "content"} for f in self.files.values()]
             return Response(payload={"files": page})
-        if path.endswith("/export"):
-            file = self.files[path.split("/")[1]]
-            return Response(content=b"EXPORT:" + params["mimeType"].encode() + b":" + file["content"])
         return Response(content=self.files[path.split("/")[1]]["content"])
 
 
@@ -52,17 +49,15 @@ def names(library):
     return [f["name"] for f in library.list()]
 
 
-def test_new_files_are_added_and_google_documents_are_exported(setup):
+def test_new_files_are_copied_as_they_are(setup):
     drive, library, sync = setup
     drive.put("1", "Code CIMA.pdf", content=b"pdf")
-    drive.put("2", "Notes", DOC, b"doc")
-    drive.put("3", "Costs", SHEET, b"sheet")
+    drive.put("2", "Costs.xlsx", "application/vnd.ms-excel", b"sheet")
+    drive.put("3", "notes.txt", "text/plain", b"text")
     result = sync.sync_once()
     assert result["added"] == 3 and result["skipped"] == []
-    assert names(library) == ["Code CIMA.pdf", "Costs.xlsx", "Notes.pdf"]
-    assert (library.folder / "Notes.pdf").read_bytes() == b"EXPORT:application/pdf:doc"
-    assert (library.folder / "Costs.xlsx").read_bytes().startswith(b"EXPORT:application/vnd.openxmlformats")
-    assert (library.folder / "Code CIMA.pdf").read_bytes() == b"pdf"
+    assert names(library) == ["Code CIMA.pdf", "Costs.xlsx", "notes.txt"]
+    assert (library.folder / "Code CIMA.pdf").read_bytes() == b"pdf" and (library.folder / "Costs.xlsx").read_bytes() == b"sheet"
     assert not list(library.folder.glob(".part-*"))                                 # no half-written file is left
 
 
