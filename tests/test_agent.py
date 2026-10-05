@@ -106,10 +106,10 @@ def test_with_wolof_as_the_reply_language_ask_human_speaks_the_question_itself(m
     assert "finish your turn" in ui.ask_text("Your answer: ") and ui.spoken == ["Ban fichier?"]
 
 
-def test_the_agent_is_told_to_answer_only_from_its_workspace_files():
+def test_the_agent_is_told_to_answer_only_from_the_library_documents():
     from waxal_agent.agent import CONCISE, SYSTEM_PROMPT
-    assert "only from information you found in the files of your workspace" in SYSTEM_PROMPT and "Never use outside knowledge" in SYSTEM_PROMPT
-    assert "answer only from what you found in your workspace files" in CONCISE
+    assert "only from information you found in the documents of the library" in SYSTEM_PROMPT and "Never use outside knowledge" in SYSTEM_PROMPT
+    assert "answer only from what you found in the library documents" in CONCISE
 
 
 def test_stop_only_reaches_a_running_turn(tmp_path, monkeypatch):
@@ -135,3 +135,15 @@ def test_a_stop_asked_before_a_turn_does_not_abort_it(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "send", lambda text: seen.append(state.stop_requested) or True)
     AgentTurns(tmp_path / "users").ask("u", "hello")
     assert seen == [False]
+
+
+def test_the_shared_library_is_a_read_only_folder_and_the_prompt_says_where_it_is(tmp_path, monkeypatch):
+    monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
+    library = tmp_path / "library"
+    added, seen = [], []
+    monkeypatch.setattr(session, "add_read_folder", lambda path: added.append(path))
+    monkeypatch.setattr(session, "send", lambda text: seen.append(state.system_prompt) or True)
+    AgentTurns(tmp_path / "users", documents=library).ask("221771234567", "what is the total?")
+    assert added == [library.resolve()] and library.is_dir()                       # created, and granted for reading only
+    assert library.resolve().as_posix() in seen[0] and "{documents}" not in seen[0]
+    assert (tmp_path / "users" / "221771234567").is_dir()                          # the person's own folder holds only their conversation

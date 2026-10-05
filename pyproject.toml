@@ -10,6 +10,8 @@ dependencies = [
     "fastapi>=0.110",
     "uvicorn>=0.30",
     "httpx>=0.27",   # WhatsApp Cloud API calls
+    "google-auth>=2.30",   # a service account signs in to Google Drive (the document library)
+    "requests>=2.31",     # the transport google-auth uses
 ]
 
 [project.optional-dependencies]

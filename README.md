@@ -29,13 +29,25 @@ back) can be checked before the real models exist. ffmpeg must be installed (it 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
 
-## The person's files
+## The library: documents shared by everybody
 
-The agent reads the files in the person's own folder (`data/users/<number or "test">/`). They can put files there themselves:
-- **Test page:** a "My files" box: pick or drop PDFs, images, Excel, CSV or text files; each one can be deleted.
-- **WhatsApp:** a document or photo sent in the chat is saved to the sender's folder, and the answer says so.
+All the documents are common to all users: they live in one library folder (`data/documents`, `WAXAL_DOCUMENTS` or `--documents`),
+and the agent reads them, read-only, for every person. Each person's own folder (`data/users/<number>/`) only holds their
+conversation. Nobody but an administrator adds documents.
 
-Only those kinds are accepted (never overwritten: `report (2).pdf`), at most 20 MB each (`WAXAL_MAX_UPLOAD_MB`) and 200 files.
+**With Google Drive (recommended):** the administrators add, replace and remove documents in one Drive folder, and the server mirrors it.
+1. In Google Cloud: create a project, enable the **Google Drive API**, create a **service account** and download its JSON key.
+2. In Drive: share the documents folder with the service account's e-mail address (viewer is enough).
+3. Set `WAXAL_DRIVE_FOLDER` (the folder id: the last part of its address) and `WAXAL_DRIVE_CREDENTIALS` (the key file's path; or
+   `WAXAL_DRIVE_CREDENTIALS_JSON` with the JSON itself). `WAXAL_DRIVE_INTERVAL` (seconds, default 600) is the time between syncs.
+
+A change in Drive replaces the local file, and a file removed or trashed in Drive is removed locally. Every file is copied as it is, whatever its kind; a file over
+`WAXAL_MAX_UPLOAD_MB` (20) is skipped and logged. The agent's tools read PDF (`read_pdf`), Excel (`read_excel`), images (`view_image`) and UTF-8 text (`read_file`):
+another kind, such as a Word file, is in the library but the agent cannot read it. Only the files directly in the folder are used. A failed Drive call changes nothing and is logged.
+Files that the sync did not add are never touched.
+
+**Without Drive:** an administrator adds documents on the test page (protected by `WAXAL_TOKEN`), or by sending a document or photo on WhatsApp
+from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.
 
 ## ElevenLabs (recognition and voice)
 

@@ -1,8 +1,9 @@
-"""One conversation per person, on top of CodeAgent.
+"""One conversation per person, on top of CodeAgent, over one library of documents shared by everybody.
 
 CodeAgent keeps its state in the process (one project at a time), so turns are run one after the other
-under a lock: each turn opens the person's own folder, resumes their saved conversation, answers, and
-saves it again. Throughput is one turn at a time per process: run several processes for more.
+under a lock: each turn opens the person's own folder (their conversation lives there), adds the shared library as a
+read-only folder, resumes their saved conversation, answers, and saves it again. Throughput is one turn at a time per
+process: run several processes for more.
 """
 
 import re
@@ -35,11 +36,11 @@ def register_speak_wolof() -> None:
 
 register_speak_wolof()
 
-SYSTEM_PROMPT = """You are a helpful assistant that talks with people through spoken voice notes. You work in the \
-folder {workspace} and can read the files in it.
+SYSTEM_PROMPT = """You are a helpful assistant that talks with people through spoken voice notes. You answer questions about \
+the documents of the library, the folder {documents} (the same documents for every person). You can only read them.
 
 Always write in {language}, whatever language the documents or the person's message are in: when you quote a document, translate what you quote. Give your answer to the person by calling speak_wolof once with the whole answer: it is translated into Wolof by a machine and spoken aloud. So:
-- Answer only from information you found in the files of your workspace: read the relevant files first (list_directory, then read_pdf, read_excel, read_file or view_image), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
+- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
@@ -48,7 +49,7 @@ Always write in {language}, whatever language the documents or the person's mess
 - If you need to ask the person something, use ask_human with one very brief question (a few words, in {language}), then end your turn: they answer by voice in their next message.
 The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
-SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{language}", REPLY_LANGUAGE_NAME)  # ({workspace} is filled in by CodeAgent)
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{language}", REPLY_LANGUAGE_NAME)  # ({workspace} would be filled in by CodeAgent)
 
 
 def user_folder(root: Path, user_id: str) -> Path:
@@ -70,14 +71,17 @@ def spoken_reply(reply: str, questions: list[str], spoken: list[str] = ()) -> st
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
-CONCISE = f"Instructions: answer only from what you found in your workspace files (say so if it is not there), always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
+CONCISE = f"Instructions: answer only from what you found in the library documents (say so if it is not there), always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
 
 
 class AgentTurns:
     """Run one instruction for one person and return the written reply."""
 
-    def __init__(self, root: Path | str = "data/users", tools: list[str] | None = None) -> None:
+    def __init__(self, root: Path | str = "data/users", tools: list[str] | None = None,
+                 documents: Path | str | None = None) -> None:
         self.root = Path(root)
+        self.documents = Path(documents).resolve() if documents else None  # the shared library, read-only for the agent
+        self.system_prompt = SYSTEM_PROMPT.replace("{documents}", self.documents.as_posix() if self.documents else "{workspace}")
         self.tools = TOOLS if tools is None else tools
         self._lock = threading.Lock()
         self._running = False
@@ -95,7 +99,10 @@ class AgentTurns:
         ui = VoiceUI()
         failure = None
         with self._lock:
-            session.open_project(folder, ui=ui, tools=self.tools, system_prompt=SYSTEM_PROMPT, resume=True)
+            session.open_project(folder, ui=ui, tools=self.tools, system_prompt=self.system_prompt, resume=True)
+            if self.documents:
+                self.documents.mkdir(parents=True, exist_ok=True)
+                session.add_read_folder(self.documents)
             state.stop_requested = False  # a stop asked for earlier must not abort this turn
             self._running = True
             try:
