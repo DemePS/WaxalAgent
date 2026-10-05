@@ -147,3 +147,19 @@ def test_the_shared_library_is_a_read_only_folder_and_the_prompt_says_where_it_i
     assert added == [library.resolve()] and library.is_dir()                       # created, and granted for reading only
     assert library.resolve().as_posix() in seen[0] and "{documents}" not in seen[0]
     assert (tmp_path / "users" / "221771234567").is_dir()                          # the person's own folder holds only their conversation
+
+
+def test_text_history_drops_tool_calls_and_keeps_what_was_said():
+    from waxal_agent.agent import text_history
+    msgs = [
+        {"role": "user", "content": "What is the rate?"},
+        {"role": "assistant", "content": [{"type": "tool_use", "id": "1", "name": "read_pdf", "input": {"path": "/a.pdf"}}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "1", "content": "rate 5%"}]},
+        {"role": "assistant", "content": [{"type": "tool_use", "id": "2", "name": "speak_wolof", "input": {"text": "It is five percent."}}]},
+        {"role": "user", "content": [{"type": "tool_result", "tool_use_id": "2", "content": "ok"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "Done."}]},
+    ]
+    assert text_history(msgs) == [
+        {"role": "user", "content": [{"type": "text", "text": "What is the rate?"}]},
+        {"role": "assistant", "content": [{"type": "text", "text": "It is five percent.\nDone."}]},
+    ]

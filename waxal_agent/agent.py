@@ -43,6 +43,7 @@ the documents of the library, the folder {documents} (the same documents for eve
 
 Always write in {language}, whatever language the documents or the person's message are in: when you quote a document, translate what you quote. Give your answer to the person by calling speak_wolof once with the whole answer: it is translated into Wolof by a machine and spoken aloud. So:
 - Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
+- Read the documents again for every question, even if the same or a similar question was asked before in this conversation: earlier answers are not a source, the documents are.
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
@@ -52,6 +53,35 @@ Always write in {language}, whatever language the documents or the person's mess
 The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{language}", REPLY_LANGUAGE_NAME)  # ({workspace} would be filled in by CodeAgent)
+
+
+HISTORY_TURNS = 6  # earlier exchanges kept in the conversation
+
+
+def text_history(messages: list, keep: int = HISTORY_TURNS) -> list:
+    """The earlier conversation as plain text only: what the person asked and what the agent said (speak_wolof and
+    ask_human included). The tool calls and their results are dropped, so that a question asked again is answered by
+    reading the documents again, not copied from the tool results of the last time."""
+    said = {"speak_wolof": "text", "ask_human": "question"}
+    turns: list[dict] = []
+    for m in messages:
+        blocks = [{"type": "text", "text": m["content"]}] if isinstance(m["content"], str) else m["content"]
+        texts = [b["text"] for b in blocks if b.get("type") == "text" and b.get("text")]
+        if m["role"] == "assistant":
+            texts += [b["input"][said[b["name"]]] for b in blocks
+                      if b.get("type") == "tool_use" and b.get("name") in said and said[b["name"]] in b.get("input", {})]
+        if not texts:
+            continue  # tool results, thinking
+        text = "\n".join(texts)
+        if turns and turns[-1]["role"] == m["role"]:
+            turns[-1]["content"][0]["text"] += "\n" + text
+        else:
+            turns.append({"role": m["role"], "content": [{"type": "text", "text": text}]})
+    while turns and turns[0]["role"] != "user":
+        turns.pop(0)
+    if turns and turns[-1]["role"] == "user":
+        turns.pop()  # an unanswered question: the next instruction replaces it
+    return turns[-2 * keep:]
 
 
 def user_folder(root: Path, user_id: str) -> Path:
@@ -73,7 +103,7 @@ def spoken_reply(reply: str, questions: list[str], spoken: list[str] = ()) -> st
 
 
 # Added to every spoken request: the reply is translated and spoken, so shorter is better.
-CONCISE = f"Instructions: answer only from what you found in the library documents (say so if it is not there), always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
+CONCISE = f"Instructions: read the library documents again for this question; answer only from what you found in the library documents (say so if it is not there), always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
 
 
 class AgentTurns:
@@ -108,6 +138,7 @@ class AgentTurns:
             english += f"\n\nThis person also has their own documents in {personal.as_posix()}: read them too."
         with self._lock:
             session.open_project(folder, ui=ui, tools=self.tools, system_prompt=self.system_prompt, resume=True)
+            session.messages[:] = text_history(session.messages)
             if self.documents:
                 self.documents.mkdir(parents=True, exist_ok=True)
                 session.add_read_folder(self.documents)
