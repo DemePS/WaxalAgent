@@ -30,8 +30,11 @@ class Library:
         self.folder.mkdir(parents=True, exist_ok=True)
 
     def list(self) -> list[dict]:
-        files = [p for p in self.folder.iterdir() if p.is_file() and not p.name.startswith(".")]
-        return [{"name": p.name, "size": p.stat().st_size} for p in sorted(files, key=lambda p: p.name.lower())]
+        """Every document, with its path inside the library ("Contracts/Code CIMA.pdf"); hidden files and folders are not listed."""
+        files = [p for p in self.folder.rglob("*")
+                 if p.is_file() and not any(part.startswith(".") for part in p.relative_to(self.folder).parts)]
+        return [{"name": p.relative_to(self.folder).as_posix(), "size": p.stat().st_size}
+                for p in sorted(files, key=lambda p: p.relative_to(self.folder).as_posix().lower())]
 
     def save(self, name: str, data: bytes) -> str:
         name = safe_name(name)
