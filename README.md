@@ -22,9 +22,7 @@ export ANTHROPIC_API_KEY=sk-ant-...      # or the Foundry variables, see the Cod
 uv run waxal-agent serve                  # http://127.0.0.1:8000
 ```
 
-With the stand-in engines nothing is really recognised or translated: "hearing" returns a fixed Wolof sentence and
-translation tags the text `[en]` / `[wo]`. The page shows the whole turn, so the plumbing (recording, agent, audio
-back) can be checked before the real models exist. ffmpeg must be installed (it converts the recordings).
+Recognition and voice go through ElevenLabs (`ELEVENLABS_API_KEY` is required), translation through Claude. ffmpeg must be installed (it converts the recordings).
 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
@@ -85,13 +83,13 @@ uv run python scripts/check_api.py understand recording.wav    # Wolof speech ->
 uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
 uv run python scripts/check_api.py translate en wo "Hello"     # then: translate wo en "..."
 uv run python scripts/check_api.py speak "Naka nga def?"       # writes speech.wav: play it
-uv run waxal-agent serve --engines soynade                     # the whole turn, on the test page
+uv run waxal-agent serve                                     # the whole turn, on the test page
 ```
 
 If audio output is not offered for your key ("Only text output is supported during launch"), a reply stays text only and the
 API is not asked again for ten minutes (`SOYNADE_TTS=off` stops asking). Rate limits (HTTP 429) are waited out as the server
 says; each turn is about four calls. Everything people say, and every reply, goes to Soynade: say so in your terms.
-`--engines soynade-asr` uses only their recognition (the rest are stand-ins). Other voices: `WAXAL_TTS=huggingface`
+Other voices: `WAXAL_TTS=huggingface`
 (`HF_TOKEN`, MMS Wolof, non-commercial licence) or `WAXAL_TTS=oolel-demo` (Soynade's public demo Space, `uv sync --extra demo`).
 
 ## WhatsApp
@@ -111,7 +109,7 @@ Uses Meta's WhatsApp Business Cloud API: a business account, a phone number, and
    | `WAXAL_ALLOWED` | phone numbers allowed to use the agent, digits, comma-separated. **Empty: nobody** |
    | `WHATSAPP_GRAPH_VERSION` | optional, default `v21.0` (check Meta's current version) |
 
-3. `uv run waxal-agent serve --engines <engines> --whatsapp --host 0.0.0.0`, then in Meta's settings set the callback URL to
+3. `uv run waxal-agent serve --whatsapp --host 0.0.0.0`, then in Meta's settings set the callback URL to
    `https://<your address>/webhook` with the verify token, and subscribe to the `messages` field.
 4. Send a voice note from an allowed number. You get a voice note back and the same words as text.
 

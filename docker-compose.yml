@@ -1,7 +1,5 @@
 # `docker compose up --build`, then open http://localhost:8000/?token=<WAXAL_TOKEN>
-#   WAXAL_ENGINES=fake         (default) stand-ins: tests the plumbing and the agent
-#   WAXAL_ENGINES=soynade      everything through Soynade's API (SOYNADE_API_KEY)
-#   WAXAL_ENGINES=soynade-asr  only Soynade's speech recognition; translation and voice are stand-ins
+#   Recognition and voice: ElevenLabs (ELEVENLABS_API_KEY); translation: Claude.
 # WhatsApp: add `--profile tunnel` for a public https address (see docs/SANDBOX.md).
 
 services:
@@ -17,7 +15,7 @@ services:
       WAXAL_TOKEN: "${WAXAL_TOKEN:?set WAXAL_TOKEN in .env (the server listens on all addresses inside the container)}"
     command: >
       waxal-agent serve --host 0.0.0.0 --port 8000
-      --engines ${WAXAL_ENGINES:-fake} ${WAXAL_EXTRA_ARGS:-}
+      ${WAXAL_EXTRA_ARGS:-}
     ports:
       - "127.0.0.1:8000:8000"   # your PC only; the tunnel service is what makes it public
     volumes:

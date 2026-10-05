@@ -24,7 +24,7 @@ your Claude access and the agent. From another terminal: `uv run python scripts/
 Then Soynade's hosted API (nothing to download). First find out what your key can do: `uv run python scripts/check_api.py models`.
 
 ```bash
-# in .env:  SOYNADE_API_KEY=...   WAXAL_ENGINES=soynade
+# in .env:  SOYNADE_API_KEY=...   WAXAL_STT=soynade  WAXAL_TTS=soynade
 docker compose up --build
 ```
 
