@@ -29,13 +29,16 @@ back) can be checked before the real models exist. ffmpeg must be installed (it 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
 
-## The person's files
+## The library: documents shared by everybody
 
-The agent reads the files in the person's own folder (`data/users/<number or "test">/`). They can put files there themselves:
-- **Test page:** a "My files" box: pick or drop PDFs, images, Excel, CSV or text files; each one can be deleted.
-- **WhatsApp:** a document or photo sent in the chat is saved to the sender's folder, and the answer says so.
+All the documents are common to all users: they live in one library folder (`data/documents`, `WAXAL_DOCUMENTS` or `--documents`),
+and the agent reads them, read-only, for every person. Each person's own folder (`data/users/<number>/`) only holds their
+conversation. Only an administrator adds documents:
+- **Test page** (protected by `WAXAL_TOKEN`): the "Library" box: pick or drop PDFs, images, Excel, CSV or text files; each one can be deleted.
+- **WhatsApp:** a document or photo sent in the chat from a number in `WAXAL_ADMINS` (comma-separated, digits) is added to the library, and the
+  answer says so. From any other number the bot says that only administrators can add documents.
 
-Only those kinds are accepted (never overwritten: `report (2).pdf`), at most 20 MB each (`WAXAL_MAX_UPLOAD_MB`) and 200 files.
+Only those kinds are accepted (never overwritten: `report (2).pdf`), at most 20 MB each (`WAXAL_MAX_UPLOAD_MB`) and 1000 files.
 
 ## ElevenLabs (recognition and voice)
 

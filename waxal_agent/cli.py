@@ -5,12 +5,12 @@ import os
 import sys
 
 
-def build_pipeline(engines: str, data: str):
+def build_pipeline(engines: str, data: str, documents: str | None = None):
     from .agent import AgentTurns
     from .engines import build_engines
     from .pipeline import Pipeline
     listener, translator, speaker = build_engines(engines)
-    return Pipeline(listener, translator, speaker, AgentTurns(data))
+    return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents))
 
 
 def main() -> None:
@@ -22,6 +22,8 @@ def main() -> None:
                        help="Answer WhatsApp voice notes at /webhook (needs the WHATSAPP_* variables, see README).")
     serve.add_argument("--host", default="127.0.0.1")
     serve.add_argument("--port", type=int, default=8000)
+    serve.add_argument("--documents", default=os.environ.get("WAXAL_DOCUMENTS") or "data/documents",
+                       help="The library: the documents shared by every person (an administrator adds them). WAXAL_DOCUMENTS.")
     serve.add_argument("--data", default="data/users", help="Where each person's folder and conversation are kept.")
     args = parser.parse_args()
     import logging
@@ -42,7 +44,7 @@ def main() -> None:
     from .language import REPLY_LANGUAGE
     print(f"The agent works and answers in: {REPLY_LANGUAGE}" + ("" if REPLY_LANGUAGE == "wo" else " (translated into Wolof by Soynade)"),
           file=sys.stderr)
-    pipeline = build_pipeline(engines, args.data)
+    pipeline = build_pipeline(engines, args.data, args.documents)
     bot = None
     if args.whatsapp:
         from .whatsapp import WhatsAppBot, WhatsAppClient, WhatsAppConfig
@@ -51,8 +53,8 @@ def main() -> None:
         if not config.allowed:
             print("Warning: WAXAL_ALLOWED is empty: nobody can use the agent yet.", file=sys.stderr)
     # With WhatsApp on a public server, the test page is only offered when a token protects it.
-    from .files import UserFiles
-    user_files = UserFiles(args.data)
+    from .files import Library
+    user_files = Library(args.documents)
     if bot is not None:
         bot.files = user_files
     app = create_app(pipeline, token_from_env(), bot, test_page=(bot is None or token_from_env() is not None), files=user_files)

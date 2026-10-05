@@ -30,8 +30,9 @@ log = logging.getLogger("waxal.whatsapp")
 
 GRAPH = "https://graph.facebook.com"
 SORRY = "Sorry, something went wrong. Please try again."
-ONLY_VOICE_AND_TEXT = "I can only listen to voice notes, read text messages, and keep documents and photos."
-FILE_SAVED = "I saved your file: {name}. Ask me about it."
+ONLY_VOICE_AND_TEXT = "I can only listen to voice notes and read text messages."
+FILE_SAVED = "I added the file to the library: {name}."
+ONLY_ADMINS_ADD_DOCUMENTS = "Only the administrators can add documents. You can ask me questions about the documents I have."
 NOT_ALLOWED = "Sorry, this number is not allowed to use this service."
 
 
@@ -46,6 +47,7 @@ class WhatsAppConfig:
     verify_token: str
     app_secret: str
     allowed: set[str] = field(default_factory=set)
+    admins: set[str] = field(default_factory=set)  # may add documents to the library by sending them in the chat
     graph_version: str = "v21.0"
 
     @classmethod
@@ -55,8 +57,9 @@ class WhatsAppConfig:
         if missing:
             raise SystemExit("WhatsApp needs these environment variables: " + ", ".join(missing))
         allowed = {digits(n) for n in env.get("WAXAL_ALLOWED", "").split(",") if digits(n)}
+        admins = {digits(n) for n in env.get("WAXAL_ADMINS", "").split(",") if digits(n)}
         return cls(env["WHATSAPP_TOKEN"], env["WHATSAPP_PHONE_NUMBER_ID"], env["WHATSAPP_VERIFY_TOKEN"],
-                   env["WHATSAPP_APP_SECRET"], allowed, env.get("WHATSAPP_GRAPH_VERSION") or "v21.0")
+                   env["WHATSAPP_APP_SECRET"], allowed, admins, env.get("WHATSAPP_GRAPH_VERSION") or "v21.0")
 
 
 class WhatsAppClient:
@@ -115,7 +118,7 @@ def messages_in(payload: dict) -> list[dict]:
 class WhatsAppBot:
     def __init__(self, pipeline: Pipeline, client: WhatsAppClient, config: WhatsAppConfig) -> None:
         self.pipeline, self.client, self.config = pipeline, client, config
-        self.files = None  # a UserFiles: documents and photos sent in the chat are kept for the agent
+        self.files = None  # the Library: documents and photos sent by an administrator are added to it
         self._seen: OrderedDict[str, None] = OrderedDict()  # Meta can deliver a message twice
         self._lock = threading.Lock()
 
@@ -159,7 +162,10 @@ class WhatsAppBot:
             elif kind == "text":
                 result = self.pipeline.from_wolof(sender, message["text"]["body"], speak=False)
             elif kind in ("document", "image") and self.files is not None:
-                self._keep_file(sender, kind, message)
+                if sender in self.config.admins:
+                    self._keep_file(sender, kind, message)
+                else:
+                    self._say(sender, ONLY_ADMINS_ADD_DOCUMENTS)
                 return
             else:
                 self._say(sender, ONLY_VOICE_AND_TEXT)
@@ -186,7 +192,7 @@ class WhatsAppBot:
         info = message[kind]
         name = info.get("filename") or f"photo-{info['id'][-8:]}" + (".png" if "png" in info.get("mime_type", "") else ".jpg")
         try:
-            saved = self.files.save(sender, name, self.client.download_media(info["id"]))
+            saved = self.files.save(name, self.client.download_media(info["id"]))
         except FileRefused as e:
             self._say(sender, str(e))
             return
