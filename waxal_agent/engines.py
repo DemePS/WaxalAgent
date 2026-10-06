@@ -69,6 +69,18 @@ def build_listener(soynade_client=None) -> Listener:
     raise SystemExit(f"Unknown WAXAL_STT {choice!r}: use soynade or elevenlabs.")
 
 
+def describe_engines(name: str) -> dict[str, str]:
+    """What each stage really uses for this run, as the start-up messages report it: {"stt": ..., "mt": ..., "tts": ...}."""
+    import os
+    if name == "fake":
+        return {"stt": "stand-in", "mt": "stand-in", "tts": "stand-in"}
+    env = os.environ
+    mt = (env.get("WAXAL_MT") or "claude").lower()
+    if name == "soynade-asr":
+        return {"stt": "soynade", "mt": "stand-in", "tts": "stand-in"}
+    return {"stt": (env.get("WAXAL_STT") or "elevenlabs").lower(), "mt": mt, "tts": (env.get("WAXAL_TTS") or "elevenlabs").lower()}
+
+
 def build_engines(name: str) -> tuple[Listener, Translator, Speaker]:
     """fake: stand-ins for everything (no key needed).
     soynade-asr: Soynade's hosted speech recognition (SOYNADE_API_KEY); translation and voice are stand-ins.

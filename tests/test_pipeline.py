@@ -128,3 +128,15 @@ def test_texts_can_be_delivered_before_the_voice():
     assert result.reply_wolof == "[wo] The total is 642." and result.audio_wav == b"" and speaker.spoken == []
     wav, notes = pipe.speak_text(result.reply_wolof)
     assert wav and notes == [] and speaker.spoken == ["[wo] The total is 642."]
+
+
+def test_the_start_up_message_reports_the_real_engines(monkeypatch):
+    from waxal_agent.engines import describe_engines
+    for name in ("WAXAL_STT", "WAXAL_MT", "WAXAL_TTS"):
+        monkeypatch.delenv(name, raising=False)
+    assert describe_engines("fake") == {"stt": "stand-in", "mt": "stand-in", "tts": "stand-in"}
+    assert describe_engines("soynade-asr") == {"stt": "soynade", "mt": "stand-in", "tts": "stand-in"}
+    assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "claude", "tts": "elevenlabs"}
+    monkeypatch.setenv("WAXAL_MT", "Soynade")
+    monkeypatch.setenv("WAXAL_TTS", "huggingface")
+    assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "soynade", "tts": "huggingface"}

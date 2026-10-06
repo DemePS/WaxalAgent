@@ -41,10 +41,14 @@ def main() -> None:
     certs.trust_system_certificates()  # a company proxy re-signs HTTPS (models, Meta)
     from .server import create_app, token_from_env
     engines = args.engines or ("hosted" if os.environ.get("SOYNADE_API_KEY") or os.environ.get("ELEVENLABS_API_KEY") else "fake")
-    print(f"Engines: {engines}" + (" (stand-ins: no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY or ELEVENLABS_API_KEY)" if engines == "fake" else ""),
+    from .engines import describe_engines
+    used = describe_engines(engines)
+    print(f"Engines: {engines} (recognition: {used['stt']}, translation: {used['mt']}, voice: {used['tts']})"
+          + (": no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY or ELEVENLABS_API_KEY" if engines == "fake" else ""),
           file=sys.stderr)
     from .language import REPLY_LANGUAGE
-    print(f"The agent works and answers in: {REPLY_LANGUAGE}" + ("" if REPLY_LANGUAGE == "wo" else " (translated into Wolof by Soynade)"),
+    print(f"The agent works and answers in: {REPLY_LANGUAGE}"
+          + ("" if REPLY_LANGUAGE == "wo" else f" (translated into Wolof by {used['mt']})"),
           file=sys.stderr)
     developer = os.environ.get("DEVELOPER_MODE", "").lower() in ("1", "true", "yes", "on")
     s3 = None
