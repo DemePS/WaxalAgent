@@ -53,3 +53,19 @@ def test_without_a_skills_folder_the_prompt_does_not_mention_skills(tmp_path):
 def test_the_copy_of_the_example_skills_into_data_skills_is_documented():
     readme = (EXAMPLES.parent.parent / "README.md").read_text(encoding="utf-8")
     assert "data/skills" in readme and "docs/skills" in readme
+
+
+def test_the_start_up_line_says_which_skills_were_found_or_why_none(tmp_path):
+    from waxal_agent.agent import skills_report
+    turns = AgentTurns(tmp_path / "users", skills=tmp_path / "skills")           # sets the folder the skills are looked up in
+    assert "none found" in skills_report(turns.skills) and "SKILL.md" in skills_report(turns.skills)    # the folder does not exist yet
+    (tmp_path / "skills" / "greet").mkdir(parents=True)
+    (tmp_path / "skills" / "greet" / "SKILL.md").write_text("---\ndescription: Use to greet.\n---\nhi")
+    (tmp_path / "skills" / "broken").mkdir()
+    report = skills_report(turns.skills)
+    assert "1 in" in report and "greet" in report and "broken has no SKILL.md" in report
+    assert skills_report(None).startswith("Skills: off")
+
+
+def test_the_prompt_tells_the_agent_to_load_a_matching_skill_first(tmp_path):
+    assert "first action is to call load_skill" in AgentTurns(tmp_path / "users", skills=tmp_path / "skills").system_prompt

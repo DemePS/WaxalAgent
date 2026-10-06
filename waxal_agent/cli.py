@@ -87,6 +87,8 @@ def main() -> None:
     elif os.environ.get("WAXAL_S3_BUCKET"):
         print("DEVELOPER_MODE: S3 is off, the documents are read from the local folders.", file=sys.stderr)
     pipeline = build_pipeline(engines, args.data, args.documents, refresh=s3.refresh_user if s3 else None, instructions=args.instructions, skills=args.skills)
+    from .agent import skills_report
+    print(skills_report(getattr(pipeline.agent, "skills", None)), file=sys.stderr)
     bot = None
     if args.whatsapp and developer:
         print("DEVELOPER_MODE: WhatsApp is off, only the test page is served.", file=sys.stderr)

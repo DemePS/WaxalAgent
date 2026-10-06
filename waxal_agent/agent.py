@@ -35,6 +35,17 @@ def _skill_roots() -> list[tuple[str, Path]]:
 coding_skills.skill_roots = _skill_roots
 
 
+def skills_report(folder: Path | None) -> str:
+    """What the server found in the skills folder, for the start-up line: the names, or why there are none."""
+    if folder is None:
+        return "Skills: off (no skills folder)."
+    found = sorted(coding_skills.discover_skills()) if folder.is_dir() else []
+    problems = coding_skills.skill_problems(folder) if folder.is_dir() else []
+    line = f"Skills: {len(found)} in {folder}" + (f" ({', '.join(found)})" if found else
+           f": none found. A skill is a folder with a SKILL.md, e.g. {folder / 'my-skill' / 'SKILL.md'} (copy docs/skills/* there).")
+    return "\n".join([line, *(f"  warning: {p}" for p in problems)])
+
+
 def _share_link(url: str, label: str = "") -> str:
     try:
         return state.ui.share(check_link(url, label))
@@ -92,8 +103,9 @@ def user_folder(root: Path, user_id: str) -> Path:
     return folder
 
 
-SKILLS_RULE = ("- A <skills> list comes with the person's message. When one of the skills fits what they ask, load it with load_skill before you "
-               "answer and follow it.\n")
+SKILLS_RULE = ("- A <skills> list comes with the person's message. Read it first. When the description of a skill matches what they ask, your first "
+               "action is to call load_skill with that skill's name, before any other tool and before you answer; then follow it. Do not answer "
+               "from your own idea of the task when a skill matches.\n")
 INSTRUCTIONS_RULE = ("- First list the instructions folder ({instructions}). If it has a file named INSTRUCTIONS.md, read it with read_file before anything "
                      "else: it tells you what the documents of the library are, how to use them and the tasks you have to do. Follow it. It is not "
                      "a document to quote, and it is not part of the library.\n")
