@@ -66,16 +66,36 @@ const baseTitle = document.title;
 function unlockAudio() {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch { /* falls back to <audio> */ }
 }
-async function playVoice(el, base64) {
-  const bytes = Uint8Array.from(atob(base64), c => c.charCodeAt(0));
+async function playVoice(el, bytes) {
   try {
     if (!audioCtx || audioCtx.state !== 'running') throw new Error('audio locked');
     const buffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
     const source = audioCtx.createBufferSource(); source.buffer = buffer; source.connect(audioCtx.destination); source.start();
     return;
   } catch { /* try the element */ }
+  await playElement(el);
+}
+async function playElement(el) {
   try { await el.play(); }
   catch { pendingAudio = el; if (document.hidden) document.title = '🔊 Answer ready - ' + baseTitle; }
+}
+// Plays an audio/mpeg stream while it arrives (MediaSource); `started` is called when the first bytes are in the player.
+function streamInto(el, body, started) {
+  return new Promise((resolve, reject) => {
+    const ms = new MediaSource(); el.src = URL.createObjectURL(ms);
+    ms.addEventListener('sourceopen', async () => {
+      const buffer = ms.addSourceBuffer('audio/mpeg'), reader = body.getReader(); let first = true;
+      const append = chunk => new Promise((ok, fail) => {
+        buffer.addEventListener('updateend', ok, { once: true }); buffer.addEventListener('error', () => fail(new Error('The audio could not be played.')), { once: true });
+        buffer.appendBuffer(chunk); });
+      try {
+        for (;;) { const { done, value } = await reader.read(); if (done) break; await append(value); if (first) { first = false; started(); } }
+        if (first) throw new Error('No voice.');
+        if (ms.readyState === 'open') ms.endOfStream();
+        resolve();
+      } catch (e) { reject(e); }
+    }, { once: true });
+  });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { document.title = baseTitle;
   if (pendingAudio) { pendingAudio.play().catch(() => {}); pendingAudio = null; } } });
@@ -87,15 +107,23 @@ cancelBtn.addEventListener('click', () => { if (controller) controller.abort(); 
   statusEl.textContent = 'Stopped.'; });
 
 // The texts are shown first; the voice is asked for afterwards, so a slow or failing speech service never delays the answer.
+// It is streamed (/api/speak/stream): playing starts with the first bytes when the browser can play audio/mpeg from a MediaSource,
+// else the whole clip is waited for.
 async function addVoice(div, text, signal) {
   const note = document.createElement('p'); note.className = 'note'; note.textContent = 'Preparing the voice…'; div.append(note);
   try {
-    const res = await fetch('/api/speak', { method: 'POST', signal, headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify({ text }) });
-    const r = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(r.detail || `Error ${res.status}`);
-    if (!r.audio) throw new Error((r.notes || []).join(' ') || 'No voice.');
-    const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`;
-    note.replaceWith(a); await playVoice(a, r.audio);
+    const res = await fetch('/api/speak/stream', { method: 'POST', signal, headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify({ text }) });
+    if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.detail || `Error ${res.status}`); }
+    const a = document.createElement('audio'); a.controls = true;
+    const type = (res.headers.get('content-type') || '').split(';')[0];
+    if (type === 'audio/mpeg' && res.body && window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
+      await streamInto(a, res.body, () => { note.replaceWith(a); playElement(a); });
+    } else {
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      if (!bytes.length) throw new Error('No voice.');
+      a.src = URL.createObjectURL(new Blob([bytes], { type: type || 'audio/wav' }));
+      note.replaceWith(a); await playVoice(a, bytes);
+    }
   } catch (e) { note.textContent = e.name === 'AbortError' ? 'Voice stopped.' : 'No voice: ' + e.message; }
 }
 
