@@ -119,3 +119,28 @@ def test_the_translation_model_is_opus_not_the_agents_unless_it_is_set_or_foundr
     monkeypatch.setenv("ANTHROPIC_FOUNDRY_ENDPOINT", "https://x.example/anthropic")      # Foundry: a model name is a deployment name
     monkeypatch.setenv("ANTHROPIC_FOUNDRY_DEPLOYMENT", "my-deployment")
     assert claude_api.default_model() == "my-deployment"
+
+
+def test_a_translation_style_prompt_is_added_to_the_wolof_translation_only(tmp_path, monkeypatch):
+    style = tmp_path / "translation_style_prompt.md"
+    style.write_text("Write *jàmm* not *jamm*. Glossary: {balance} = *sold*.\n", encoding="utf-8")
+    monkeypatch.setenv("WAXAL_TRANSLATION_STYLE", str(style))
+    messages = Messages()
+    translator(messages).translate("How are you?", "en", "wo")
+    translator(messages).translate("Nanga def?", "wo", "en")
+    wolof, english = messages.requests[0]["system"], messages.requests[1]["system"]
+    assert "CAADA" in wolof and "Write *jàmm* not *jamm*" in wolof and "{balance} = *sold*" in wolof
+    assert "jàmm" not in english
+    style.write_text("Say *jërejëf*.", encoding="utf-8")  # read at every translation: no restart
+    translator(messages).translate("Thanks", "en", "wo")
+    assert "jërejëf" in messages.requests[2]["system"] and "jàmm" not in messages.requests[2]["system"]
+
+
+def test_a_missing_or_empty_style_file_changes_nothing(tmp_path, monkeypatch):
+    monkeypatch.setenv("WAXAL_TRANSLATION_STYLE", str(tmp_path / "none.md"))
+    messages = Messages()
+    translator(messages).translate("How are you?", "en", "wo")
+    (tmp_path / "empty.md").write_text("  \n")
+    monkeypatch.setenv("WAXAL_TRANSLATION_STYLE", str(tmp_path / "empty.md"))
+    translator(messages).translate("How are you?", "en", "wo")
+    assert all("Style guide" not in r["system"] for r in messages.requests)

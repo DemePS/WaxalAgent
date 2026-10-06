@@ -9,6 +9,7 @@ another one. On Foundry the model is a deployment name, so there it is the agent
 import logging
 import os
 import time
+from pathlib import Path
 
 log = logging.getLogger("waxal.translate")
 
@@ -22,6 +23,24 @@ SYSTEM = {
               "mistakes: translate what was meant. Keep numbers, names, dates and article references faithful. Reply with the "
               "translation only: no quotes, no notes, no explanation."),
 }
+
+
+STYLE_FILE = "data/translation_style_prompt.md"  # WAXAL_TRANSLATION_STYLE changes it
+STYLE_MAX_CHARS = 20_000
+
+
+def style_guide() -> str:
+    """Your own instructions for the Wolof translation, from translation_style_prompt.md (spelling, vocabulary, tone, a glossary,
+    examples...). Read at every translation, so a change applies at once; a missing or empty file adds nothing."""
+    path = Path(os.environ.get("WAXAL_TRANSLATION_STYLE") or STYLE_FILE)
+    try:
+        text = path.read_text(encoding="utf-8").strip()
+    except OSError:
+        return ""
+    if len(text) > STYLE_MAX_CHARS:
+        log.warning("%s is longer than %d characters: the rest is ignored.", path, STYLE_MAX_CHARS)
+        text = text[:STYLE_MAX_CHARS]
+    return text
 
 
 DEFAULT_MODEL = "claude-opus-5"  # the translation model on Anthropic's API (the agent's default is Sonnet)
@@ -56,8 +75,11 @@ class ClaudeTranslator:
         from coding_agent.config import _get_client
         client = self._client or _get_client()
         names = {"source": NAMES.get(source, source), "target": NAMES.get(target, target)}
+        system = SYSTEM["wo" if target == "wo" else "other"].format(**names)
+        if target == "wo" and (style := style_guide()):  # appended after format(): braces in the file are safe
+            system += "\n\nStyle guide for this translation (follow it; it refines the rules above):\n" + style
         request = {"model": self._model or default_model(), "max_tokens": max(1024, 300 + 3 * len(text)),
-                   "system": SYSTEM["wo" if target == "wo" else "other"].format(**names),
+                   "system": system,
                    "messages": [{"role": "user", "content": text}]}
         started = time.monotonic()
         reply = self._create(client, request)
