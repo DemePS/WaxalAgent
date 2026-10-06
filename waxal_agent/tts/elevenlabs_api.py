@@ -26,12 +26,27 @@ class ElevenLabsSpeaker:
         self.model = env.get("ELEVENLABS_TTS_MODEL") or "eleven_v4"
         self.language = env.get("ELEVENLABS_TTS_LANGUAGE", "fr")  # no Wolof in eleven_v4: French reads Wolof spelling best
         self.format = env.get("ELEVENLABS_TTS_FORMAT") or "pcm_16000"
+        self.stream_format = env.get("ELEVENLABS_STREAM_FORMAT") or "mp3_44100_64"  # what speak_stream sends: playable as it arrives
 
     def request_body(self, text: str) -> dict:
         body = {"text": text, "model_id": self.model}
         if self.language:
             body["language_code"] = self.language
         return body
+
+    def speak_stream(self, text: str):
+        """(media type, an iterator of audio bytes) of the voice of `text`, from ElevenLabs' streaming route: the first bytes come
+        before the whole clip is made. Errors (a refusal, no credit) are raised here, before any byte is returned."""
+        response = self.client.stream_post(f"v1/text-to-speech/{self.voice}/stream", params={"output_format": self.stream_format},
+                                           json=self.request_body(text))
+
+        def body():
+            try:
+                yield from response.iter_bytes()
+            finally:
+                response.close()
+        media = "audio/mpeg" if self.stream_format.startswith("mp3_") else "application/octet-stream"
+        return media, body()
 
     def speak(self, text: str) -> bytes:
         response = self.client.post(f"v1/text-to-speech/{self.voice}", params={"output_format": self.format},

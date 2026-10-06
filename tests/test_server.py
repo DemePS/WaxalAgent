@@ -105,3 +105,32 @@ def test_a_failing_service_gives_the_page_a_message_not_a_crash():
     pipeline = Pipeline(FakeListener(default="naka"), Broken(), FakeSpeaker(), StubAgent())
     r = TestClient(create_app(pipeline)).post("/api/text", json={"text": "naka nga def"})
     assert r.status_code == 502 and "ValueError: Claude returned no translation" in r.json()["detail"]
+
+
+def test_the_voice_can_be_streamed():
+    r = client().post("/api/speak/stream", json={"text": "Nanga def?"})
+    assert r.status_code == 200 and r.headers["content-type"] == "audio/wav" and r.content[:4] == b"RIFF"  # a speaker that cannot stream: whole WAV
+
+
+def test_a_streaming_speaker_is_streamed_piece_by_piece():
+    class Streaming(FakeSpeaker):
+        def speak_stream(self, text):
+            return "audio/mpeg", iter([b"AA", text.encode()])
+    pipeline = Pipeline(FakeListener(default="naka"), FakeTranslator(), Streaming(), StubAgent())
+    r = TestClient(create_app(pipeline)).post("/api/speak/stream", json={"text": "salam"})
+    assert r.headers["content-type"] == "audio/mpeg" and r.content == b"AAsalam"
+
+
+def test_no_voice_is_a_502_with_the_reason_before_any_audio():
+    from waxal_agent.tts.base import SpeechUnavailable
+
+    class Off(FakeSpeaker):
+        def speak_stream(self, text):
+            raise SpeechUnavailable("switched off")
+    pipeline = Pipeline(FakeListener(default="naka"), FakeTranslator(), Off(), StubAgent())
+    r = TestClient(create_app(pipeline)).post("/api/speak/stream", json={"text": "salam"})
+    assert r.status_code == 502 and "switched off" in r.json()["detail"]
+
+
+def test_the_stream_route_needs_the_token():
+    assert client("secret").post("/api/speak/stream", json={"text": "x"}).status_code == 403

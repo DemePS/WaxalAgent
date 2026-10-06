@@ -112,6 +112,27 @@ class Pipeline:
         log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(wav))
         return wav, result.notes
 
+    def speak_stream(self, wolof: str):
+        """(media type, an iterator of audio bytes, notes): the voice of a Wolof text as it is made, one piece (at most SPEECH_LIMIT
+        characters) after the other. A speaker that cannot stream gives each piece whole, as WAV. No voice: ("", empty, notes)."""
+        pieces = chunks(wolof, SPEECH_LIMIT)
+        stream = getattr(self.speaker, "speak_stream", None)
+        try:
+            if not pieces:
+                return "", iter(()), []
+            if stream is None:
+                return "audio/wav", iter([_join_wavs([self.speaker.speak(c) for c in pieces])]), []
+            media, first = stream(pieces[0])
+
+            def body():
+                yield from first
+                for c in pieces[1:]:
+                    yield from stream(c)[1]
+            return media, body(), []
+        except (SpeechUnavailable, SoynadeError) as e:
+            log.warning("[5] speech failed: %s", e)
+            return "", iter(()), [f"No voice: {e}"]
+
     def _speak(self, parts: list[str], result: TurnResult) -> bytes:
         """The spoken reply; when speech output is not available, the reply stays text only (and says why in the notes)."""
         try:

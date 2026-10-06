@@ -9,7 +9,7 @@ from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
 from fastapi.concurrency import run_in_threadpool
-from fastapi.responses import FileResponse, PlainTextResponse
+from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
 from .audio import AudioError
@@ -102,6 +102,16 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             check(request)
             wav, notes = await run_in_threadpool(pipeline.speak_text, body.text)
             return {"audio": base64.b64encode(wav).decode("ascii"), "audio_type": "audio/wav", "notes": notes}
+
+        @app.post("/api/speak/stream")
+        async def speak_stream(request: Request, body: TextIn):
+            """The voice of a Wolof text, sent while it is made (audio/mpeg with ElevenLabs, WAV with a speaker that cannot stream).
+            When no voice can be made: 502 and the reason, before any audio."""
+            check(request)
+            media, audio_bytes, notes = await run_in_threadpool(pipeline.speak_stream, body.text)
+            if not media:
+                raise HTTPException(502, "; ".join(notes) or "No voice.")
+            return StreamingResponse(audio_bytes, media_type=media)
 
         @app.post("/api/stop")
         def stop(request: Request):

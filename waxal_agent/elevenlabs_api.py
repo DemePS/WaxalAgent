@@ -46,6 +46,19 @@ class ElevenLabsClient:
         url = f"{self.base_url}/{path.lstrip('/')}"
         return self.policy.run(lambda: self.http.post(url, headers={"xi-api-key": self.api_key}, **options), url)
 
+    def stream_post(self, path: str, **options) -> httpx.Response:
+        """Like post(), but the body is not read: the caller iterates `iter_bytes()` and closes the response. The status is checked
+        (and an error body read) before it returns, under the same policy as post()."""
+        url = f"{self.base_url}/{path.lstrip('/')}"
+
+        def send() -> httpx.Response:
+            request = self.http.build_request("POST", url, headers={"xi-api-key": self.api_key}, **options)
+            response = self.http.send(request, stream=True)
+            if response.status_code != 200:
+                response.read()  # the policy reads the error detail
+            return response
+        return self.policy.run(send, url)
+
 
 def _detail(response: httpx.Response) -> str:
     try:

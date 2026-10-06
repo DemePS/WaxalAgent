@@ -154,3 +154,10 @@ LIBRARY=customers/acme/docs docker compose build   # or another folder
 The documents are copied into the image at `/app/library` and `WAXAL_DOCUMENTS` points there, so the customer receives
 one private image: no source, no documents to copy. Each person's own documents and memory stay in the mounted `data/`
 volume. `library/` is git-ignored so customer documents are never committed.
+
+## Streaming the voice
+
+`POST /api/speak/stream` with `{"text": "<Wolof>"}` (and the `X-Token` header) sends the voice while ElevenLabs makes it
+(`audio/mpeg`, `ELEVENLABS_STREAM_FORMAT`, default `mp3_44100_64`), so a client can start playing at once. A speaker that cannot
+stream sends the whole WAV. When no voice can be made, the answer is a 502 with the reason, before any audio. `/api/speak`
+(the whole clip as base64 WAV) is unchanged, and so is the WhatsApp voice note, which needs a finished file.

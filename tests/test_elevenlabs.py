@@ -102,3 +102,21 @@ def test_elevenlabs_engines_need_no_soynade_key(monkeypatch):
     listener, translator, speaker = build_engines("hosted")
     assert [type(e).__name__ for e in (listener, translator, speaker)] == ["ElevenLabsListener", "ClaudeTranslator", "ElevenLabsSpeaker"]
     assert Pipeline(listener, translator, speaker, agent=None).direct is False       # Wolof text, then translated to English
+
+
+def test_speech_can_be_streamed_from_the_stream_route_in_a_playable_format():
+    seen = []
+
+    def handler(request):
+        seen.append(request)
+        return httpx.Response(200, content=b"ID3" + b"\x01" * 100)
+    media, audio = ElevenLabsSpeaker(client(handler)).speak_stream("Nanga def?")
+    assert media == "audio/mpeg" and b"".join(audio).startswith(b"ID3")
+    assert seen[0].url.path == "/v1/text-to-speech/JBFqnCBsd6RMkjVDRZzb/stream" and seen[0].url.params["output_format"] == "mp3_44100_64"
+
+
+def test_a_refusal_is_raised_before_any_byte_is_streamed():
+    def handler(request):
+        return httpx.Response(402, json={"detail": {"message": "quota exceeded"}})
+    with pytest.raises(ElevenLabsError, match="quota exceeded"):
+        ElevenLabsSpeaker(client(handler)).speak_stream("Nanga def?")
