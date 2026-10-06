@@ -163,8 +163,20 @@ def test_the_prompt_says_what_really_happens_to_the_text():
         assert spoken in out and out.strip().endswith(machine), out
 
 
-def test_the_agent_is_told_to_discover_the_instructions_file_of_the_library_itself(tmp_path):
-    turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library")
+def test_the_instructions_are_a_separate_read_only_folder_the_agent_discovers_itself(tmp_path, monkeypatch):
+    monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
+    monkeypatch.setattr(session, "send", fake_send("ok"))
+    (tmp_path / "instructions").mkdir()
+    (tmp_path / "instructions" / "INSTRUCTIONS.md").write_text("Be kind.")
+    turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library", instructions=tmp_path / "instructions")
     prompt = turns.system_prompt
-    assert "INSTRUCTIONS.md" in prompt and "read_file" in prompt and "{documents}" not in prompt
-    assert (tmp_path / "library").resolve().as_posix() in prompt and "read_file" in module.TOOLS
+    assert "INSTRUCTIONS.md" in prompt and "read_file" in prompt and "{instructions" not in prompt and "{documents}" not in prompt
+    assert (tmp_path / "instructions").resolve().as_posix() in prompt and (tmp_path / "library").resolve().as_posix() in prompt
+    turns.ask("u", "hello")
+    roots = {r.resolve() for r in state.read_roots}
+    assert roots == {(tmp_path / "library").resolve(), (tmp_path / "instructions").resolve()}   # two folders, and never data/ itself
+    assert "read_file" in module.TOOLS
+
+
+def test_without_an_instructions_folder_the_prompt_does_not_mention_one(tmp_path):
+    assert "INSTRUCTIONS.md" not in AgentTurns(tmp_path / "users", documents=tmp_path / "library").system_prompt

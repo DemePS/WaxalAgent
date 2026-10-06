@@ -169,8 +169,11 @@ sent as text under the answer on WhatsApp, and never spoken. Only `https` addres
 subdomains, e.g. `renassur.sn`) are accepted; a refusal tells the agent why. When it is not set, no link is shared. The agent can also use
 `web_search` (Anthropic's hosted search, `AGENT_WEB_SEARCH=off` to disable it) to find the page. No link to the library's files is offered.
 
-## INSTRUCTIONS.md in the library
+## INSTRUCTIONS.md: general instructions, apart from the documents
 
-Put a file named `INSTRUCTIONS.md` in the library (`data/documents/`, or `library/` for the Docker image). The agent lists the library at the start
-of a turn, reads this file with `read_file` when it is there, and follows it: what the documents are, how to use them, and the tasks it has to do.
-No code is involved, so a customer can write their own. `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner).
+Put a file named `INSTRUCTIONS.md` in `data/instructions/` (`WAXAL_INSTRUCTIONS_DIR`, or `--instructions`). The agent lists that folder at the start of a
+turn, reads the file with `read_file` when it is there, and follows it: what the documents are, how to use them and the tasks it has to do. It is
+the same for every person, and it is kept apart from the library, which holds only the knowledge the agent answers from. The folder is read-only for
+the agent and is the only part of `data/` it can open (the people's folders and conversations are not). No code is involved, so a customer can
+write their own: `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner). With Docker, `data/` is the mounted volume,
+so edit the file there.

@@ -50,8 +50,7 @@ SYSTEM_PROMPT = """You are a helpful assistant that talks with people through sp
 the documents of the library, the folder {documents} (the same documents for every person). You can only read them.
 
 Always write in {language}, whatever language the documents are in: when you quote a document, translate what you quote. Your final reply is your answer to the person, and nothing else: {spoken}. So:
-- First list the library ({documents}). If it has a file named INSTRUCTIONS.md, read it with read_file before anything else: it tells you what the documents are, how to use them and the tasks you have to do. Follow it. It is not a document to quote.
-- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
+{instructions_rule}- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
@@ -80,6 +79,11 @@ def user_folder(root: Path, user_id: str) -> Path:
     return folder
 
 
+INSTRUCTIONS_RULE = ("- First list the instructions folder ({instructions}). If it has a file named INSTRUCTIONS.md, read it with read_file before anything "
+                     "else: it tells you what the documents of the library are, how to use them and the tasks you have to do. Follow it. It is not "
+                     "a document to quote, and it is not part of the library.\n")
+
+
 def spoken_reply(reply: str, questions: list[str]) -> str:
     """What is spoken to the person, and nothing else: the question the agent asked (ask_human); else its final reply."""
     asked = [t.strip() for t in questions if t.strip()]
@@ -94,11 +98,15 @@ class AgentTurns:
     """Run one instruction for one person and return the written reply."""
 
     def __init__(self, root: Path | str = "data/users", tools: list[str] | None = None,
-                 documents: Path | str | None = None, refresh=None) -> None:
+                 documents: Path | str | None = None, refresh=None, instructions: Path | str | None = None) -> None:
         self.root = Path(root)
         self.refresh = refresh  # refresh(user_id, folder): fetch this person's own documents into folder before a turn
         self.documents = Path(documents).resolve() if documents else None  # the shared library, read-only for the agent
-        self.system_prompt = SYSTEM_PROMPT.replace("{documents}", self.documents.as_posix() if self.documents else "{workspace}")
+        # The instructions folder (data/instructions, WAXAL_INSTRUCTIONS_DIR): general instructions for everybody, apart from the documents.
+        self.instructions = Path(instructions).resolve() if instructions else None
+        rule = INSTRUCTIONS_RULE.replace("{instructions}", self.instructions.as_posix()) if self.instructions else ""
+        self.system_prompt = (SYSTEM_PROMPT.replace("{instructions_rule}", rule)
+                              .replace("{documents}", self.documents.as_posix() if self.documents else "{workspace}"))
         self.tools = TOOLS if tools is None else tools
         self._lock = threading.Lock()
         self._running = False
@@ -141,6 +149,9 @@ class AgentTurns:
             if self.documents:
                 self.documents.mkdir(parents=True, exist_ok=True)
                 session.add_read_folder(self.documents)
+            if self.instructions:
+                self.instructions.mkdir(parents=True, exist_ok=True)
+                session.add_read_folder(self.instructions)
             state.stop_requested = False  # a stop asked for earlier must not abort this turn
             self._running = True
             try:
