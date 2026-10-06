@@ -182,3 +182,36 @@ def test_the_instructions_are_a_separate_read_only_folder_the_agent_discovers_it
 
 def test_without_an_instructions_folder_the_prompt_does_not_mention_one(tmp_path):
     assert "INSTRUCTIONS.md" not in AgentTurns(tmp_path / "users", documents=tmp_path / "library").system_prompt
+
+
+def run_responses(ui, responses):
+    """Play what CodeAgent's loop calls on the UI: per response, its text, and the tools it starts."""
+    for text, tools in responses:
+        ui.assistant_start()
+        ui.assistant_text(text)
+        for name in tools:
+            ui.tool_start(name)
+        ui.assistant_end()
+
+
+def test_the_answer_written_before_share_link_is_not_lost_when_the_agent_ends_with_a_short_sentence():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    run_responses(ui, [("Le code ne rend pas l'assurance obligatoire. Je vous conseille notre partenaire.", ["share_link"]),
+                       ("Voici le lien pour les contacter.", [])])
+    assert ui.reply == "Le code ne rend pas l'assurance obligatoire. Je vous conseille notre partenaire. Voici le lien pour les contacter."
+
+
+def test_narration_before_other_tools_is_still_dropped():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    run_responses(ui, [("Let me look in the documents.", ["read_pdf"]), ("Je cherche l'article.", ["read_pdf"]), ("La réponse complète.", [])])
+    assert ui.reply == "La réponse complète."
+
+
+def test_an_answer_that_shares_a_link_and_ends_the_turn_is_spoken_whole():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    run_responses(ui, [("Je cherche.", ["read_pdf"]), ("Voici ma réponse, et le lien.", ["share_link"])])
+    assert ui.reply == "Voici ma réponse, et le lien."
+    assert "write it now, in full" in ui.share({"url": "https://renassur.sn/", "label": "Renassur"})

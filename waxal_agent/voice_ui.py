@@ -24,17 +24,21 @@ class VoiceUI(UI):
         self.questions: list[str] = []
         self.links: list[dict] = []  # what the agent shared with share_link: [{"url", "label"}]
         self._chunks: list[str] = []
+        self._kept: list[str] = []      # answers written before a link was shared: they are part of the answer
+        self._links_here = False        # this response calls share_link
 
     def share(self, link: dict) -> str:
         """The share_link tool: the link is shown to the person with the answer (not spoken). Once per address."""
         if all(link["url"] != known["url"] for known in self.links):
             self.links.append(link)
             log.info("   share_link: %s", link["url"])
-        return "(The link will be shown to the person. Do not read it aloud or write it in your answer.)"
+        return ("(The link will be shown to the person. Do not read it aloud or write it in your answer. Your last message is what is "
+                "spoken: if you have not written your answer yet, write it now, in full.)")
 
     # what the agent says
     def assistant_start(self) -> None:
         self._chunks = []
+        self._links_here = False
 
     def assistant_text(self, text: str) -> None:
         self._chunks.append(text)
@@ -43,7 +47,11 @@ class VoiceUI(UI):
         text = "".join(self._chunks).strip()
         if text:
             log.info("   the agent says: %s", text[:300])
-            self.reply = text  # the last non-empty response is the answer (earlier ones are 'let me look')
+            # The last non-empty response is the answer (earlier ones are 'let me look'), except that what the agent wrote in a response that
+            # shares a link is its answer too: it often writes the answer, calls share_link, then ends with a short "here is the link".
+            if self._links_here:
+                self._kept.append(text)
+            self.reply = " ".join(self._kept if self._links_here else [*self._kept, text])
         self._chunks = []
 
     def thinking(self) -> None:
@@ -51,6 +59,8 @@ class VoiceUI(UI):
 
     def tool_start(self, name: str) -> None:
         log.info("   tool: %s", name)
+        if name == "share_link":
+            self._links_here = True
 
     def tool_result(self, name: str, arguments: str, ok: bool, summary: str) -> None:
         log.log(logging.INFO if ok else logging.WARNING, "   tool %s(%s) -> %s: %s", name, arguments[:200],
