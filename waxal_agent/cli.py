@@ -34,6 +34,7 @@ def main() -> None:
     logging.basicConfig(level=os.environ.get("WAXAL_LOG", "INFO").upper(), format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%H:%M:%S")
     logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per HTTP request adds nothing here
+    logging.getLogger("azure").setLevel(logging.WARNING)  # azure.identity logs its credential probing at INFO
     from . import certs
     from . import maintenance
     maintenance.start()  # old conversations and notes: once now, then daily
