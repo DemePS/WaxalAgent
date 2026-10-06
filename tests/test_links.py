@@ -77,7 +77,7 @@ def test_the_page_shows_the_links_as_safe_anchors():
     from fastapi.testclient import TestClient
     from waxal_agent.server import create_app
     page = TestClient(create_app(Pipeline(FakeListener(), FakeTranslator(), FakeSpeaker(), StubAgent()))).get("/").text
-    assert "r.links" in page and "noopener noreferrer" in page and "textContent = k.label" in page    # text, never innerHTML
+    assert "links(e.links)" in page and "noopener noreferrer" in page and "textContent = k.label" in page    # text, never innerHTML
 
 
 def test_the_prompt_lists_the_allowed_sites_only_when_there_are_some(tmp_path, monkeypatch):
