@@ -6,12 +6,13 @@ import sys
 from pathlib import Path
 
 
-def build_pipeline(engines: str, data: str, documents: str | None = None, refresh=None, instructions: str | None = None):
+def build_pipeline(engines: str, data: str, documents: str | None = None, refresh=None, instructions: str | None = None,
+                   skills: str | None = None):
     from .agent import AgentTurns
     from .engines import build_engines
     from .pipeline import Pipeline
     listener, translator, speaker = build_engines(engines)
-    return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh, instructions=instructions))
+    return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh, instructions=instructions, skills=skills))
 
 
 def quiet_loggers() -> None:
@@ -47,6 +48,8 @@ def main() -> None:
                        help="The library: the documents shared by every person (an administrator adds them). WAXAL_DOCUMENTS.")
     serve.add_argument("--instructions", default=os.environ.get("WAXAL_INSTRUCTIONS_DIR") or "data/instructions",
                        help="The folder with INSTRUCTIONS.md: general instructions for the agent, apart from the documents. WAXAL_INSTRUCTIONS_DIR.")
+    serve.add_argument("--skills", default=os.environ.get("WAXAL_SKILLS_DIR") or "data/skills",
+                       help="The folder of the agent's skills (one folder with a SKILL.md each), the same for every person. WAXAL_SKILLS_DIR.")
     serve.add_argument("--data", default="data/users", help="Where each person's folder and conversation are kept.")
     args = parser.parse_args()
     import logging
@@ -81,7 +84,7 @@ def main() -> None:
         print(f"The documents come from S3 (bucket {s3.bucket}); the library is synced every {s3.interval:.0f} s.", file=sys.stderr)
     elif os.environ.get("WAXAL_S3_BUCKET"):
         print("DEVELOPER_MODE: S3 is off, the documents are read from the local folders.", file=sys.stderr)
-    pipeline = build_pipeline(engines, args.data, args.documents, refresh=s3.refresh_user if s3 else None, instructions=args.instructions)
+    pipeline = build_pipeline(engines, args.data, args.documents, refresh=s3.refresh_user if s3 else None, instructions=args.instructions, skills=args.skills)
     bot = None
     if args.whatsapp and developer:
         print("DEVELOPER_MODE: WhatsApp is off, only the test page is served.", file=sys.stderr)

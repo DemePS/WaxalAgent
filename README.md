@@ -187,3 +187,12 @@ the answer is cut into small pieces that are all translated at the same time; th
 still are, and the voice of each piece is streamed while ElevenLabs makes it (`audio/mpeg`; a speaker that cannot stream sends one WAV clip per piece).
 The test page uses these routes. `/api/turn` and `/api/text` (one JSON answer) are unchanged, and so is WhatsApp, which needs finished files; the
 pieces of its answer are translated at the same time too.
+
+## Skills
+
+A skill is a folder with a `SKILL.md` (a `---` header with `name:` and `description:`, then the instructions) in `data/skills/` (`WAXAL_SKILLS_DIR`, or
+`--skills`), the same for every person. The agent sees the list of names and descriptions with each message and loads a skill with `load_skill` only when
+it fits, so many skills cost little. Unlike `INSTRUCTIONS.md`, which is always read, a skill is read on demand. The folder is read-only for the agent, and
+a skill added while the server runs is found at the next turn. Only this folder is used: CodeAgent's own coding skills are not offered.
+`docs/skills/` holds two examples to copy into `data/skills/`: `recommend-partner-insurance` (an honest recommendation, with a link to the partner)
+and `register-on-partner-website` (its steps are to be written by the owner).
