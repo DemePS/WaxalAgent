@@ -22,7 +22,15 @@ class VoiceUI(UI):
         self.errors: list[str] = []
         self.refused: list[str] = []
         self.questions: list[str] = []
+        self.links: list[dict] = []  # what the agent shared with share_link: [{"url", "label"}]
         self._chunks: list[str] = []
+
+    def share(self, link: dict) -> str:
+        """The share_link tool: the link is shown to the person with the answer (not spoken). Once per address."""
+        if all(link["url"] != known["url"] for known in self.links):
+            self.links.append(link)
+            log.info("   share_link: %s", link["url"])
+        return "(The link will be shown to the person. Do not read it aloud or write it in your answer.)"
 
     # what the agent says
     def assistant_start(self) -> None:

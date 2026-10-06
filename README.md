@@ -161,3 +161,10 @@ volume. `library/` is git-ignored so customer documents are never committed.
 (`audio/mpeg`, `ELEVENLABS_STREAM_FORMAT`, default `mp3_44100_64`), so a client can start playing at once. A speaker that cannot
 stream sends the whole WAV. When no voice can be made, the answer is a 502 with the reason, before any audio. `/api/speak`
 (the whole clip as base64 WAV) is unchanged, and so is the WhatsApp voice note, which needs a finished file.
+
+## Links
+
+The agent can show the person a link (`share_link`), for example to the insurance regulator's site. The link is displayed on the page and
+sent as text under the answer on WhatsApp, and never spoken. Only `https` addresses on the sites of `WAXAL_LINK_DOMAINS` (a site and its
+subdomains, e.g. `renassur.sn`) are accepted; a refusal tells the agent why. When it is not set, no link is shared. The agent can also use
+`web_search` (Anthropic's hosted search, `AGENT_WEB_SEARCH=off` to disable it) to find the page. No link to the library's files is offered.

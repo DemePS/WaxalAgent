@@ -52,6 +52,10 @@ function show(r) {
     const p = document.createElement('p'); p.textContent = text; if (cls) p.className = cls; div.append(l, p); };
   add('Heard (Wolof)', r.wolof); add('Understood (English)', r.english);
   add('Answer (English)', r.reply_english); add('Answer (Wolof)', r.reply_wolof);
+  if ((r.links || []).length) { const l = document.createElement('div'); l.className = 'label'; l.textContent = 'Links';
+    const p = document.createElement('p');
+    r.links.forEach((k, i) => { if (i) p.append(' · '); const a = document.createElement('a'); a.href = k.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = k.label; p.append(a); });
+    div.append(l, p); }
   (r.notes || []).forEach(n => add('Note', n, 'note'));
   if (r.audio) { const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`; div.append(a); a.play().catch(() => {}); }
   turns.prepend(div);

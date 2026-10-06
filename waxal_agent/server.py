@@ -30,7 +30,7 @@ class TextIn(BaseModel):
 
 def as_json(result: TurnResult) -> dict:
     return {"wolof": result.wolof, "english": result.english, "reply_english": result.reply_english,
-            "reply_wolof": result.reply_wolof, "notes": result.notes,
+            "reply_wolof": result.reply_wolof, "notes": result.notes, "links": result.links,
             "audio": base64.b64encode(result.audio_wav).decode("ascii"), "audio_type": "audio/wav"}
 
 

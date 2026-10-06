@@ -40,6 +40,11 @@ def digits(number: str) -> str:
     return "".join(c for c in number if c.isdigit())
 
 
+def with_links(text: str, links: list[dict]) -> str:
+    """The reply and, under it, the links the agent shared (one per line: label, then the address)."""
+    return text + "".join(f"\n\n{link['label']}: {link['url']}" for link in links)
+
+
 @dataclass
 class WhatsAppConfig:
     token: str
@@ -178,7 +183,7 @@ class WhatsAppBot:
             self._say(sender, SORRY)
             return
         if result.reply_wolof:
-            self.client.send_text(sender, result.reply_wolof)  # the text first: the voice may be slow, or fail
+            self.client.send_text(sender, with_links(result.reply_wolof, result.links))  # the text first: the voice may be slow, or fail
             try:
                 wav, _ = self.pipeline.speak_text(result.reply_wolof)
                 if wav:

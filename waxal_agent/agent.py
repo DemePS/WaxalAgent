@@ -11,18 +11,36 @@ import threading
 from pathlib import Path
 
 from coding_agent import register_tool, session, state
+from coding_agent.common import ToolError
 
+from .links import LinkRefused, allowed_domains, check_link
 from .language import REPLY_LANGUAGE, REPLY_LANGUAGE_NAME
 from .mt.claude_api import style_guide
 from .office_tools import register_office_tools
 from .voice_ui import VoiceUI
 
 # Read-only: a public channel must not change or delete files, run programs or browse. Its final reply is the answer.
-TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human"]
+TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human", "share_link", "web_search"]
+
+
+def _share_link(url: str, label: str = "") -> str:
+    try:
+        return state.ui.share(check_link(url, label))
+    except LinkRefused as e:
+        raise ToolError(str(e))
 
 
 def register_tools() -> None:
     """The application's own tools, added with CodeAgent's register_tool: read_word, read_powerpoint."""
+    register_tool({
+        "name": "share_link",
+        "description": ("Show the person a link to a website, with the answer: it is displayed (and sent as text), never spoken. Use it when "
+                        "a website would help them, for example where to find or do something. Only an https link to an allowed website is "
+                        "accepted (an error tells you which). Give a short label saying what the link is for."),
+        "input_schema": {"type": "object", "properties": {"url": {"type": "string", "description": "The https address."},
+                                                          "label": {"type": "string", "description": "What the link is, a few words."}},
+                         "required": ["url"]},
+    }, _share_link)
     register_office_tools()
 
 
@@ -88,7 +106,12 @@ class AgentTurns:
         """The system prompt of this turn. When the agent writes the Wolof itself (WAXAL_REPLY_LANGUAGE=wo), the style guide
         (translation_style_prompt.md) is part of it: nobody else translates. Read at every turn, so a change applies at once."""
         style = style_guide() if REPLY_LANGUAGE == "wo" else ""
-        return self.system_prompt + (f"\n\nStyle guide for the Wolof you write (follow it):\n{style}" if style else "")
+        domains = allowed_domains()
+        links = ((f"\n\nWhen a website would help the person, call share_link with an https address and a short label: the link is shown "
+                  f"with your answer and never spoken, so do not read an address aloud or write it in your answer. Only these websites are allowed: "
+                  f"{', '.join(domains)}. web_search can help you find the right page.") if domains else "")
+        return (self.system_prompt + links
+                + (f"\n\nStyle guide for the Wolof you write (follow it):\n{style}" if style else ""))
 
     def stop(self) -> bool:
         """Stop the turn that is running (it ends at the next model call and is rolled back). False when none is running."""
@@ -99,6 +122,11 @@ class AgentTurns:
 
     def ask(self, user_id: str, english: str) -> tuple[str, list[str]]:
         """(the agent's reply, notes about what went wrong or could not be done)."""
+        reply, notes, _ = self.ask_full(user_id, english)
+        return reply, notes
+
+    def ask_full(self, user_id: str, english: str) -> tuple[str, list[str], list[dict]]:
+        """(the reply, the notes, the links the agent shared): the links belong to this turn only."""
         folder = user_folder(self.root, user_id)
         ui = VoiceUI()
         failure = None
@@ -125,4 +153,4 @@ class AgentTurns:
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:
             notes.append(failure)
-        return spoken_reply(ui.reply, ui.questions), notes
+        return spoken_reply(ui.reply, ui.questions), notes, ui.links

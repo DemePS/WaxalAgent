@@ -32,6 +32,7 @@ class TurnResult:
     reply_wolof: str = ""      # the answer in Wolof (what is spoken)
     audio_wav: bytes = b""     # the spoken answer
     notes: list[str] = field(default_factory=list)
+    links: list[dict] = field(default_factory=list)  # [{"url", "label"}] the agent shared: shown and sent as text, never spoken
 
 
 class Pipeline:
@@ -72,6 +73,14 @@ class Pipeline:
             log.info("[2] Wolof -> English: %s", result.english)
         return self._answer(user_id, result, speak)
 
+    def _ask(self, user_id: str, question: str):
+        """(reply, notes, links): an agent that shares links answers with ask_full, any other with ask."""
+        ask_full = getattr(self.agent, "ask_full", None)
+        if ask_full:
+            return ask_full(user_id, question)
+        reply, notes = self.agent.ask(user_id, question)
+        return reply, notes, []
+
     def _answer(self, user_id: str, result: TurnResult, speak: bool = True) -> TurnResult:
         """From the English the agent received: the agent's answer, in Wolof, spoken."""
         question = result.wolof if REPLY_LANGUAGE == "wo" else result.english  # Wolof mode: no translation
@@ -85,7 +94,7 @@ class Pipeline:
             return result
         log.info("[3] asking the agent: %s", question)
         started = time.monotonic()
-        result.reply_english, notes = self.agent.ask(user_id, question)
+        result.reply_english, notes, result.links = self._ask(user_id, question)
         result.notes += notes
         log.info("[3] agent answered (%.1f s): %s", time.monotonic() - started, result.reply_english)
         for note in notes:
