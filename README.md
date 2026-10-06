@@ -10,21 +10,24 @@ Wolof voice -> [ASR] Wolof text -> [MT] English -> agent (CodeAgent) -> English 
 Every stage is replaceable (`stt/`, `mt/`, `tts/`), and both languages are kept and shown so mistakes are visible.
 The agent engine is [CodeAgent](https://github.com/DemePS/CodeAgent) (pinned in `pyproject.toml`).
 
-Status: the pipeline, the agent per person, the test page, the WhatsApp webhook and Soynade's speech recognition are written
-and tested **with stand-ins and recorded responses**. Nothing has been run against Soynade's real service or WhatsApp yet:
-that needs your keys. Translation and speech output through Soynade's API are not wired yet. Steps below.
+Everything is hosted APIs, no model runs here: ElevenLabs for recognition and voice, Claude for translation and for the agent
+(Soynade's API is an option). Status: the pipeline, the agent per person, the documents from S3, the test page and the
+WhatsApp webhook are written and tested **with stand-ins and recorded responses**. Nothing has been run against the real
+ElevenLabs, S3 or WhatsApp yet: that needs your keys. All settings are listed in `example.env`.
 
 ## Try it
 
 ```bash
 uv sync
-export ANTHROPIC_API_KEY=sk-ant-...      # or the Foundry variables, see the CodeAgent README
-uv run waxal-agent serve                  # http://127.0.0.1:8000
+cp example.env .env                       # every setting, with DEVELOPER_MODE=1; fill in the keys
+set -a; source .env; set +a               # the server reads the environment, not the file
+uv run waxal-agent serve                  # http://127.0.0.1:8000/?token=<WAXAL_TOKEN>
 ```
 
-With the stand-in engines nothing is really recognised or translated: "hearing" returns a fixed Wolof sentence and
-translation tags the text `[en]` / `[wo]`. The page shows the whole turn, so the plumbing (recording, agent, audio
-back) can be checked before the real models exist. ffmpeg must be installed (it converts the recordings).
+Needs `ANTHROPIC_API_KEY` (or the Foundry variables, see the CodeAgent README) and `ELEVENLABS_API_KEY`: recognition and voice
+go through ElevenLabs, translation and the agent through Claude. ffmpeg must be installed (it converts the recordings).
+`DEVELOPER_MODE=1` (the value in `example.env`) keeps S3 and WhatsApp off, so only the test page is served; set it to `0` or remove it
+for a deployment. `WHATSAPP.md` has the commands to test on WhatsApp.
 
 Set `WAXAL_TOKEN` to require a token (header `X-Token`, or `?token=` in the page address) when the server is reachable
 from other machines.
@@ -51,22 +54,21 @@ Old `.doc` / `.ppt` files and other kinds are in the library but the agent canno
 **Without S3:** an administrator adds documents by copying them into the library folder, or by sending a document or photo on WhatsApp
 from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`report (2).pdf`); 1000 files at most.
 
-## ElevenLabs (recognition and voice)
+## ElevenLabs (recognition and voice, the default)
 
-Instead of Soynade (for example when its credits are used up): `ELEVENLABS_API_KEY`, then `WAXAL_STT=elevenlabs` (Wolof speech to
-Wolof text, translated to English by Claude) and/or `WAXAL_TTS=elevenlabs` (the Wolof voice, model `eleven_v4`, voice
-`ELEVENLABS_VOICE_ID`). Try each on its own first: `uv run python scripts/check_api.py eleven-speak "Nanga def"` and
-`eleven-listen recording.wav`. If ElevenLabs rejects a language field, the error says so: set `ELEVENLABS_TTS_LANGUAGE` or
-`ELEVENLABS_STT_LANGUAGE` (an empty value leaves the field out).
+`ELEVENLABS_API_KEY`. `WAXAL_STT=elevenlabs` (the default: Wolof speech to Wolof text, translated to English by Claude) and
+`WAXAL_TTS=elevenlabs` (the default: the Wolof voice, model `eleven_v4`, voice `ELEVENLABS_VOICE_ID`). Try each on its own first:
+`uv run python scripts/check_api.py eleven-speak "Nanga def"` and `eleven-listen recording.wav`. If ElevenLabs rejects a language
+field, the error says so: set `ELEVENLABS_TTS_LANGUAGE` or `ELEVENLABS_STT_LANGUAGE` (an empty value leaves the field out).
 
 ## Live sandbox (Docker + your own WhatsApp)
 
 `docker compose up --build` runs the server in a container (test page on localhost), and `docs/SANDBOX.md` walks through the
 real models and a WhatsApp test with Meta's free test number and a temporary public address. Start there.
 
-## Soynade's hosted API (nothing is hosted here)
+## Soynade's hosted API (optional)
 
-Translation is done by Claude by default (`WAXAL_MT=soynade` uses Soynade's translation route instead). Speech recognition and the Wolof voice go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
+Set `WAXAL_STT=soynade` and/or `WAXAL_TTS=soynade` to use it instead of ElevenLabs. Translation is done by Claude by default (`WAXAL_MT=soynade` uses Soynade's translation route instead). Speech recognition and the Wolof voice go through Soynade's own API routes (`https://api.soynade.ai/v1`, your key in `SOYNADE_API_KEY`,
 created in their console), called directly over HTTPS: no chat client, no model downloaded or run here.
 
 | Stage | Route and model | Status |
@@ -85,13 +87,13 @@ uv run python scripts/check_api.py understand recording.wav    # Wolof speech ->
 uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
 uv run python scripts/check_api.py translate en wo "Hello"     # then: translate wo en "..."
 uv run python scripts/check_api.py speak "Naka nga def?"       # writes speech.wav: play it
-uv run waxal-agent serve --engines soynade                     # the whole turn, on the test page
+uv run waxal-agent serve                                     # the whole turn, on the test page
 ```
 
 If audio output is not offered for your key ("Only text output is supported during launch"), a reply stays text only and the
 API is not asked again for ten minutes (`SOYNADE_TTS=off` stops asking). Rate limits (HTTP 429) are waited out as the server
 says; each turn is about four calls. Everything people say, and every reply, goes to Soynade: say so in your terms.
-`--engines soynade-asr` uses only their recognition (the rest are stand-ins). Other voices: `WAXAL_TTS=huggingface`
+Other voices: `WAXAL_TTS=huggingface`
 (`HF_TOKEN`, MMS Wolof, non-commercial licence) or `WAXAL_TTS=oolel-demo` (Soynade's public demo Space, `uv sync --extra demo`).
 
 ## WhatsApp
@@ -100,7 +102,7 @@ Uses Meta's WhatsApp Business Cloud API: a business account, a phone number, and
 (a tunnel such as `cloudflared tunnel` is enough to try it). Meta's console has its own steps; the parts that concern this code:
 
 1. In your Meta app, add the WhatsApp product, get a phone number id and a permanent access token.
-2. Set the environment (a `.env` is not read: export them, or use your host's secret store; never commit them):
+2. Set the environment, with `DEVELOPER_MODE` off (`.env` through docker compose, or exported; never commit it):
 
    | Variable | Meaning |
    |---|---|
@@ -111,7 +113,7 @@ Uses Meta's WhatsApp Business Cloud API: a business account, a phone number, and
    | `WAXAL_ALLOWED` | phone numbers allowed to use the agent, digits, comma-separated. **Empty: nobody** |
    | `WHATSAPP_GRAPH_VERSION` | optional, default `v21.0` (check Meta's current version) |
 
-3. `uv run waxal-agent serve --engines <engines> --whatsapp --host 0.0.0.0`, then in Meta's settings set the callback URL to
+3. `uv run waxal-agent serve --whatsapp --host 0.0.0.0` (or `WAXAL_EXTRA_ARGS=--whatsapp` with docker compose), then in Meta's settings set the callback URL to
    `https://<your address>/webhook` with the verify token, and subscribe to the `messages` field.
 4. Send a voice note from an allowed number. You get a voice note back and the same words as text.
 

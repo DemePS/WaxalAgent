@@ -39,7 +39,7 @@ Send a Wolof voice note from your verified number.
 ## With Docker (the tunnel included)
 
 ```bash
-# in .env also set:  WAXAL_ENGINES=hosted   WAXAL_EXTRA_ARGS=--whatsapp
+# in .env also set:  WAXAL_EXTRA_ARGS=--whatsapp
 docker compose --profile tunnel up --build
 docker compose logs tunnel | grep trycloudflare
 ```

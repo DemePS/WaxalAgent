@@ -6,12 +6,11 @@ import sys
 from pathlib import Path
 
 
-def build_pipeline(engines: str, data: str, documents: str | None = None, refresh=None, instructions: str | None = None,
-                   skills: str | None = None):
+def build_pipeline(data: str, documents: str | None = None, refresh=None, instructions: str | None = None, skills: str | None = None):
     from .agent import AgentTurns
     from .engines import build_engines
     from .pipeline import Pipeline
-    listener, translator, speaker = build_engines(engines)
+    listener, translator, speaker = build_engines("hosted")
     return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh, instructions=instructions, skills=skills))
 
 
@@ -39,7 +38,6 @@ def main() -> None:
     parser = argparse.ArgumentParser(prog="waxal-agent", description="A Wolof voice agent.")
     sub = parser.add_subparsers(dest="command", required=True)
     serve = sub.add_parser("serve", help="Start the web server with the test page.")
-    serve.add_argument("--engines", default=None, help="hosted (recognition, translation, voice: ElevenLabs for recognition and voice, Claude for translation; WAXAL_STT, WAXAL_MT and WAXAL_TTS change each one; the default when SOYNADE_API_KEY or ELEVENLABS_API_KEY is set), soynade-asr (only recognition is real) or fake (stand-ins, the default without a key).")
     serve.add_argument("--whatsapp", action="store_true",
                        help="Answer WhatsApp voice notes at /webhook (needs the WHATSAPP_* variables, see README).")
     serve.add_argument("--host", default="127.0.0.1")
@@ -64,12 +62,9 @@ def main() -> None:
     maintenance.start()  # old conversations and notes: once now, then daily
     certs.trust_system_certificates()  # a company proxy re-signs HTTPS (models, Meta)
     from .server import create_app, token_from_env
-    engines = args.engines or ("hosted" if os.environ.get("SOYNADE_API_KEY") or os.environ.get("ELEVENLABS_API_KEY") else "fake")
     from .engines import describe_engines
-    used = describe_engines(engines)
-    print(f"Engines: {engines} (recognition: {used['stt']}, translation: {used['mt']}, voice: {used['tts']})"
-          + (": no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY or ELEVENLABS_API_KEY" if engines == "fake" else ""),
-          file=sys.stderr)
+    used = describe_engines("hosted")
+    print(f"Engines: recognition: {used['stt']}, translation: {used['mt']}, voice: {used['tts']}", file=sys.stderr)
     from .language import REPLY_LANGUAGE, REPLY_LANGUAGE_NAME, translating
     print(f"The agent works and answers in: {REPLY_LANGUAGE}"
           + (f" (nothing is translated: the agent reads and writes {REPLY_LANGUAGE_NAME})" if not translating()
@@ -86,7 +81,7 @@ def main() -> None:
         print(f"The documents come from S3 (bucket {s3.bucket}); the library is synced every {s3.interval:.0f} s.", file=sys.stderr)
     elif os.environ.get("WAXAL_S3_BUCKET"):
         print("DEVELOPER_MODE: S3 is off, the documents are read from the local folders.", file=sys.stderr)
-    pipeline = build_pipeline(engines, args.data, args.documents, refresh=s3.refresh_user if s3 else None, instructions=args.instructions, skills=args.skills)
+    pipeline = build_pipeline(args.data, args.documents, refresh=s3.refresh_user if s3 else None, instructions=args.instructions, skills=args.skills)
     from . import browsing
     from .agent import skills_report
     print(skills_report(getattr(pipeline.agent, "skills", None)), file=sys.stderr)
