@@ -24,6 +24,7 @@ from dataclasses import dataclass, field
 import httpx
 
 from . import audio
+from .language import REPLY_LANGUAGE, translating
 from .pipeline import Pipeline
 
 log = logging.getLogger("waxal.whatsapp")
@@ -33,6 +34,13 @@ SORRY = "Sorry, something went wrong. Please try again."
 ONLY_VOICE_AND_TEXT = "I can only listen to voice notes and read text messages."
 FILE_SAVED = "I added the file to the library: {name}."
 ONLY_ADMINS_ADD_DOCUMENTS = "Only the administrators can add documents. You can ask me questions about the documents I have."
+# The fixed messages in French, for WAXAL_TRANSLATION=off with French as the language (nothing is translated, so they are written here).
+FRENCH = {
+    SORRY: "Désolé, une erreur s'est produite. Veuillez réessayer.",
+    ONLY_VOICE_AND_TEXT: "Je ne peux écouter que les messages vocaux et lire les messages texte.",
+    FILE_SAVED: "J'ai ajouté le fichier à la bibliothèque : {name}.",
+    ONLY_ADMINS_ADD_DOCUMENTS: "Seuls les administrateurs peuvent ajouter des documents. Vous pouvez me poser des questions sur les documents que j'ai.",
+}
 NOT_ALLOWED = "Sorry, this number is not allowed to use this service."
 
 
@@ -205,12 +213,17 @@ class WhatsAppBot:
             log.exception("Could not keep a file")
             self._say(sender, SORRY)
             return
-        self._say(sender, FILE_SAVED.format(name=saved))
+        self._say(sender, FILE_SAVED, name=saved)
 
-    def _say(self, to: str, english: str) -> None:
-        """A fixed message, translated like every reply (no Wolof is written by hand here)."""
-        try:
-            text = self.pipeline.translator.translate(english, "en", "wo")
-        except Exception:
-            text = english
+    def _say(self, to: str, english: str, **fields) -> None:
+        """A fixed message, translated like every reply (no Wolof is written by hand here). With nothing translated it is sent as it is: in
+        French when that is the language, else in English."""
+        if translating():
+            try:
+                text = self.pipeline.translator.translate(english.format(**fields) if fields else english, "en", "wo")
+            except Exception:
+                text = english.format(**fields) if fields else english
+        else:
+            text = FRENCH.get(english, english) if REPLY_LANGUAGE == "fr" else english
+            text = text.format(**fields) if fields else text
         self.client.send_text(to, text)

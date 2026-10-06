@@ -70,10 +70,12 @@ def main() -> None:
     print(f"Engines: {engines} (recognition: {used['stt']}, translation: {used['mt']}, voice: {used['tts']})"
           + (": no Wolof is really heard, translated or spoken; set SOYNADE_API_KEY or ELEVENLABS_API_KEY" if engines == "fake" else ""),
           file=sys.stderr)
-    from .language import REPLY_LANGUAGE
+    from .language import REPLY_LANGUAGE, REPLY_LANGUAGE_NAME, translating
     print(f"The agent works and answers in: {REPLY_LANGUAGE}"
-          + (" (nothing is translated: the agent reads and writes Wolof)" if REPLY_LANGUAGE == "wo" else f" (translated into Wolof by {used['mt']})"),
-          file=sys.stderr)
+          + (f" (nothing is translated: the agent reads and writes {REPLY_LANGUAGE_NAME})" if not translating()
+             else f" (translated into Wolof by {used['mt']})"), file=sys.stderr)
+    if not translating() and REPLY_LANGUAGE != "wo" and (os.environ.get("WAXAL_STT") or "elevenlabs").lower() == "soynade":
+        print("Warning: Soynade recognises Wolof only: with no translation and a language other than Wolof, use WAXAL_STT=elevenlabs.", file=sys.stderr)
     developer = os.environ.get("DEVELOPER_MODE", "").lower() in ("1", "true", "yes", "on")
     s3 = None
     if os.environ.get("WAXAL_S3_BUCKET") and not developer:

@@ -197,3 +197,11 @@ a skill added while the server runs is found at the next turn. Only this folder 
 `docs/skills/` holds examples to copy into `data/skills/`: `answer-from-the-code` (how to research an answer in the two long documents, interpretations first),
 `declare-a-claim`, `explain-my-contract`, `recommend-partner-insurance` (a confident but honest recommendation, with a link to the partner) and `register-on-partner-website`
 (its steps are to be written by the owner).
+
+## No translation (French, or any language the recogniser and the voice handle)
+
+`WAXAL_TRANSLATION=off` removes every translation: speech recognition -> the agent -> voice. The agent reads what was recognised and answers in
+`WAXAL_REPLY_LANGUAGE` (`fr` when it is not set; `en` and `wo` also work), and its answer is spoken as it is. ElevenLabs is asked to recognise and to
+speak that language (`ELEVENLABS_STT_LANGUAGE` and `ELEVENLABS_TTS_LANGUAGE` follow it unless you set them: French is `fra` for recognition and `fr` for the
+voice). The start-up line says `translation: none`. Nothing calls Claude's or Soynade's translation; the "nothing heard" message and the fixed WhatsApp
+messages are sent in French. Soynade recognises Wolof only, so use `WAXAL_STT=elevenlabs` (the default) with a language other than Wolof.

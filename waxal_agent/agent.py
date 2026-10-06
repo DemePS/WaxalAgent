@@ -14,7 +14,7 @@ from coding_agent import register_tool, session, skills as coding_skills, state
 from coding_agent.common import ToolError
 
 from .links import LinkRefused, allowed_domains, check_link
-from .language import REPLY_LANGUAGE, REPLY_LANGUAGE_NAME
+from .language import REPLY_LANGUAGE, REPLY_LANGUAGE_NAME, translating
 from .mt.claude_api import style_guide
 from .office_tools import register_office_tools
 from .voice_ui import VoiceUI
@@ -71,10 +71,11 @@ Always write in {language}, whatever language the documents are in: when you quo
 - If you need to ask the person something, use ask_human with one very brief question (a few words, in {language}), then end your turn: they answer by voice in their next message.
 The person's words reached you through {heard}, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
-# What happens to the final reply: translated into Wolof (the agent works in English or French), or spoken as it is (WAXAL_REPLY_LANGUAGE=wo).
-if REPLY_LANGUAGE == "wo":
-    SPOKEN = ("it is spoken aloud exactly as you write it, so write correct Wolof in standard (CAADA) spelling, in short plain "
-              "sentences, as it would be said aloud")
+# What happens to the final reply: translated into Wolof (the agent works in English or French), or spoken as it is (WAXAL_REPLY_LANGUAGE=wo,
+# or WAXAL_TRANSLATION=off: no translation at all).
+if not translating():
+    SPOKEN = (f"it is spoken aloud exactly as you write it, so write correct {REPLY_LANGUAGE_NAME}"
+              + (" in standard (CAADA) spelling" if REPLY_LANGUAGE == "wo" else "") + ", in short plain sentences, as it would be said aloud")
     HEARD = "speech recognition"
 else:
     SPOKEN = "it is translated into Wolof by a machine and spoken aloud"

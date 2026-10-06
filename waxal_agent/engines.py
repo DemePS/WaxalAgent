@@ -75,7 +75,8 @@ def describe_engines(name: str) -> dict[str, str]:
     if name == "fake":
         return {"stt": "stand-in", "mt": "stand-in", "tts": "stand-in"}
     env = os.environ
-    mt = "none" if (env.get("WAXAL_REPLY_LANGUAGE") or "en") == "wo" else (env.get("WAXAL_MT") or "claude").lower()  # Wolof mode: no translation
+    off = (env.get("WAXAL_TRANSLATION") or "on").strip().lower() in ("off", "0", "no", "false") or env.get("WAXAL_REPLY_LANGUAGE") == "wo"
+    mt = "none" if off else (env.get("WAXAL_MT") or "claude").lower()  # no translation at all
     if name == "soynade-asr":
         return {"stt": "soynade", "mt": "stand-in", "tts": "stand-in"}
     return {"stt": (env.get("WAXAL_STT") or "elevenlabs").lower(), "mt": mt, "tts": (env.get("WAXAL_TTS") or "elevenlabs").lower()}

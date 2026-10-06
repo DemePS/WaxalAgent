@@ -103,8 +103,9 @@ def test_nothing_heard_ends_the_stream_without_asking_the_agent():
     agent = StubAgent()
     pipe = make(agent=agent)
     events = list(pipe.stream_turn("u", pipe.hear_wolof("  ")))
-    assert [e["event"] for e in events] == ["heard", "done"] and agent.asked == []
+    assert [e["event"] for e in events][:2] == ["heard", "text"] and events[-1]["event"] == "done" and agent.asked == []
     assert events[-1]["reply_english"] == pipeline_module.NOT_HEARD and "nothing was heard" in events[-1]["notes"]
+    assert events[1]["wolof"].startswith("[wo]")                                  # the message is translated and spoken like any reply
 
 
 def test_a_failing_voice_is_a_note_and_the_texts_still_come():
