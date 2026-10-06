@@ -10,9 +10,11 @@ from waxal_agent.agent import AgentTurns, TOOLS
 EXAMPLES = Path(__file__).resolve().parent.parent / "docs" / "skills"
 
 
-def test_the_two_example_skills_are_valid_skills():
+def test_the_example_skills_are_valid_skills():
     assert skill_problems(EXAMPLES) == []
-    for name in ("recommend-partner-insurance", "register-on-partner-website"):
+    names = ("recommend-partner-insurance", "register-on-partner-website", "answer-from-the-code", "declare-a-claim", "explain-my-contract")
+    assert sorted(p.name for p in EXAMPLES.iterdir()) == sorted(names)
+    for name in names:
         header = read_skill_header(EXAMPLES / name / "SKILL.md")
         assert header["name"] == name and len(header["description"]) > 40
 
