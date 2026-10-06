@@ -166,7 +166,7 @@ stream sends the whole WAV. When no voice can be made, the answer is a 502 with 
 
 The agent can show the person a link (`share_link`), for example to the insurance regulator's site. The link is displayed on the page and
 sent as text under the answer on WhatsApp, and never spoken. Only `https` addresses on the sites of `WAXAL_LINK_DOMAINS` (a site and its
-subdomains, e.g. `renassur.sn`) are accepted; a refusal tells the agent why. When it is not set, no link is shared. The agent can also use
+subdomains, e.g. `renassur.sn`; `renassur.sn=Renassur` also fixes the name shown for the link, whatever the agent wrote) are accepted; a refusal tells the agent why. When it is not set, no link is shared. The agent can also use
 `web_search` (Anthropic's hosted search, `AGENT_WEB_SEARCH=off` to disable it) to find the page. No link to the library's files is offered.
 
 ## INSTRUCTIONS.md: general instructions, apart from the documents
@@ -195,5 +195,5 @@ A skill is a folder with a `SKILL.md` (a `---` header with `name:` and `descript
 it fits, so many skills cost little. Unlike `INSTRUCTIONS.md`, which is always read, a skill is read on demand. The folder is read-only for the agent, and
 a skill added while the server runs is found at the next turn. Only this folder is used: CodeAgent's own coding skills are not offered.
 `docs/skills/` holds examples to copy into `data/skills/`: `answer-from-the-code` (how to research an answer in the two long documents, interpretations first),
-`declare-a-claim`, `explain-my-contract`, `recommend-partner-insurance` (an honest recommendation, with a link to the partner) and `register-on-partner-website`
+`declare-a-claim`, `explain-my-contract`, `recommend-partner-insurance` (a confident but honest recommendation, with a link to the partner) and `register-on-partner-website`
 (its steps are to be written by the owner).

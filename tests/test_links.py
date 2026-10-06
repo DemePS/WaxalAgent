@@ -85,3 +85,12 @@ def test_the_prompt_lists_the_allowed_sites_only_when_there_are_some(tmp_path, m
     assert "share_link" in turns.prompt_for_turn() and "renassur.sn" in turns.prompt_for_turn()
     monkeypatch.delenv("WAXAL_LINK_DOMAINS")
     assert "share_link" not in turns.prompt_for_turn()
+
+
+def test_a_configured_name_is_the_label_whatever_the_agent_wrote(monkeypatch):
+    monkeypatch.setenv("WAXAL_LINK_DOMAINS", "renassur.sn=Renassur, example.sn")
+    from waxal_agent.links import allowed_domains
+    assert allowed_domains() == ["renassur.sn", "example.sn"]
+    assert check_link("https://www.renassur.sn/", "insurance company")["label"] == "Renassur"
+    assert check_link("https://example.sn/", "The regulator")["label"] == "The regulator"      # no name configured: the agent's label
+    assert check_link("https://example.sn/")["label"] == "example.sn"
