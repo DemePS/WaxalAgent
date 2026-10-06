@@ -168,3 +168,9 @@ The agent can show the person a link (`share_link`), for example to the insuranc
 sent as text under the answer on WhatsApp, and never spoken. Only `https` addresses on the sites of `WAXAL_LINK_DOMAINS` (a site and its
 subdomains, e.g. `renassur.sn`) are accepted; a refusal tells the agent why. When it is not set, no link is shared. The agent can also use
 `web_search` (Anthropic's hosted search, `AGENT_WEB_SEARCH=off` to disable it) to find the page. No link to the library's files is offered.
+
+## INSTRUCTIONS.md in the library
+
+Put a file named `INSTRUCTIONS.md` in the library (`data/documents/`, or `library/` for the Docker image). The agent lists the library at the start
+of a turn, reads this file with `read_file` when it is there, and follows it: what the documents are, how to use them, and the tasks it has to do.
+No code is involved, so a customer can write their own. `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner).

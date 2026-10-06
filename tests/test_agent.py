@@ -161,3 +161,10 @@ def test_the_prompt_says_what_really_happens_to_the_text():
         out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                              env={**__import__("os").environ, "WAXAL_REPLY_LANGUAGE": language}).stdout
         assert spoken in out and out.strip().endswith(machine), out
+
+
+def test_the_agent_is_told_to_discover_the_instructions_file_of_the_library_itself(tmp_path):
+    turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library")
+    prompt = turns.system_prompt
+    assert "INSTRUCTIONS.md" in prompt and "read_file" in prompt and "{documents}" not in prompt
+    assert (tmp_path / "library").resolve().as_posix() in prompt and "read_file" in module.TOOLS
