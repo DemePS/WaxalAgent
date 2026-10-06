@@ -4,8 +4,6 @@ import logging
 
 from coding_agent.ui import UI
 
-from .language import REPLY_LANGUAGE
-
 log = logging.getLogger("waxal.agent")
 
 
@@ -24,16 +22,7 @@ class VoiceUI(UI):
         self.errors: list[str] = []
         self.refused: list[str] = []
         self.questions: list[str] = []
-        self.spoken: list[str] = []  # what the agent gave to speak_wolof
         self._chunks: list[str] = []
-
-    def speak(self, text: str) -> str:
-        """The speak_wolof tool: the text is translated and spoken after the turn (once, however often it is called)."""
-        text = text.strip()
-        if text and text not in self.spoken:
-            self.spoken.append(text)
-            log.info("   speak_wolof: %s", text[:300])
-        return "(It will be said to the person by voice. Do not repeat it: finish your turn now.)"
 
     # what the agent says
     def assistant_start(self) -> None:
@@ -79,7 +68,5 @@ class VoiceUI(UI):
 
     def ask_text(self, prompt: str, multiline: bool = False) -> str:
         # Nobody can answer now: the question is already in `questions` and will be spoken.
-        if REPLY_LANGUAGE == "wo" and self.questions:  # the agent writes Wolof itself: the question is spoken as it is
-            return self.speak(self.questions[-1])
         return ("(The question has been sent to the person by voice; they will answer in their next message. "
                 "Do not wait: finish your turn now, briefly.)")

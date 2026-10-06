@@ -83,27 +83,19 @@ def test_a_question_replaces_the_rest_of_the_reply():
     assert spoken_reply("", ["Which one?"]) == "Which one?" and spoken_reply("Done.", []) == "Done."
 
 
-def test_speak_wolof_is_a_tool_and_what_it_gets_is_what_is_spoken():
-    from coding_agent import schemas, state
+def test_there_is_no_speak_wolof_tool_the_final_reply_is_the_answer():
     from coding_agent.tools import TOOL_HANDLERS
     from waxal_agent.agent import TOOLS as WAXAL_TOOLS, spoken_reply
-    from waxal_agent.voice_ui import VoiceUI
-    assert "speak_wolof" in WAXAL_TOOLS and any(t["name"] == "speak_wolof" for t in schemas.TOOLS)
-    state.ui = VoiceUI()
-    assert "finish your turn" in TOOL_HANDLERS["speak_wolof"](text="Il y a trois documents.")
-    TOOL_HANDLERS["speak_wolof"](text="Il y a trois documents.")           # twice: spoken once
-    assert state.ui.spoken == ["Il y a trois documents."]
-    assert spoken_reply("chatter", [], state.ui.spoken) == "Il y a trois documents."   # not the agent's other text
-    assert spoken_reply("My answer.", [], []) == "My answer."                          # no tool call: the final reply
-    assert spoken_reply("x", ["Quel fichier ?"], ["Salut"]) == "Quel fichier ?"        # a question comes first
+    assert "speak_wolof" not in WAXAL_TOOLS and "speak_wolof" not in TOOL_HANDLERS
+    assert spoken_reply("My answer.", []) == "My answer."                          # the final reply
+    assert spoken_reply("x", ["Quel fichier ?"]) == "Quel fichier ?"               # a question comes first
 
 
-def test_with_wolof_as_the_reply_language_ask_human_speaks_the_question_itself(monkeypatch):
+def test_ask_human_tells_the_agent_to_end_its_turn():
     from waxal_agent import voice_ui
-    monkeypatch.setattr(voice_ui, "REPLY_LANGUAGE", "wo")
     ui = voice_ui.VoiceUI()
     ui.panel("Ban fichier?", tone="question")
-    assert "finish your turn" in ui.ask_text("Your answer: ") and ui.spoken == ["Ban fichier?"]
+    assert ui.questions == ["Ban fichier?"] and "finish your turn" in ui.ask_text("Your answer: ")
 
 
 def test_the_agent_is_told_to_answer_only_from_the_library_documents():
@@ -161,11 +153,10 @@ def test_the_style_guide_is_part_of_the_prompt_only_when_the_agent_writes_the_wo
     assert "jërejëf" in turns.prompt_for_turn() and "jàmm" not in turns.prompt_for_turn()
 
 
-def test_the_prompt_and_the_tool_say_what_really_happens_to_the_text():
+def test_the_prompt_says_what_really_happens_to_the_text():
     import subprocess
     import sys
-    code = ("from waxal_agent import agent; from coding_agent.tools import TOOL_HANDLERS; "
-            "print(agent.SPOKEN); print(agent.SYSTEM_PROMPT.count('machine'))")
+    code = "from waxal_agent import agent; print(agent.SPOKEN); print(agent.SYSTEM_PROMPT.count('machine'))"
     for language, spoken, machine in (("en", "translated into Wolof by a machine", "1"), ("wo", "exactly as you write it", "0")):
         out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
                              env={**__import__("os").environ, "WAXAL_REPLY_LANGUAGE": language}).stdout

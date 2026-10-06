@@ -59,7 +59,7 @@ def main() -> None:
           file=sys.stderr)
     from .language import REPLY_LANGUAGE
     print(f"The agent works and answers in: {REPLY_LANGUAGE}"
-          + ("" if REPLY_LANGUAGE == "wo" else f" (translated into Wolof by {used['mt']})"),
+          + (" (nothing is translated: the agent reads and writes Wolof)" if REPLY_LANGUAGE == "wo" else f" (translated into Wolof by {used['mt']})"),
           file=sys.stderr)
     developer = os.environ.get("DEVELOPER_MODE", "").lower() in ("1", "true", "yes", "on")
     s3 = None

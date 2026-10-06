@@ -49,7 +49,7 @@ def call(name, **arguments):
 
 
 def test_the_tools_are_registered_and_offered_to_the_agent():
-    assert {"read_word", "read_powerpoint", "speak_wolof"} <= set(TOOL_HANDLERS)
+    assert {"read_word", "read_powerpoint"} <= set(TOOL_HANDLERS) and "speak_wolof" not in TOOL_HANDLERS
     assert {"read_word", "read_powerpoint"} <= set(agent_module.TOOLS)
 
 

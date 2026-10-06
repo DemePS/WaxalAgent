@@ -1,4 +1,5 @@
-"""The whole turn: Wolof speech -> Wolof text -> English -> the agent -> English -> Wolof -> Wolof speech."""
+"""The whole turn: Wolof speech -> Wolof text -> English -> the agent -> English -> Wolof -> Wolof speech.
+With WAXAL_REPLY_LANGUAGE=wo there is no translation at all: Wolof text -> the agent (reads and writes Wolof) -> Wolof speech."""
 
 import logging
 import os
@@ -7,7 +8,7 @@ from dataclasses import dataclass, field
 from typing import Protocol
 
 from . import audio
-from .language import TRANSLATION_SOURCE
+from .language import REPLY_LANGUAGE, TRANSLATION_SOURCE
 from .mt.base import Translator
 from .soynade_api import SoynadeError
 from .stt.base import Listener
@@ -38,7 +39,9 @@ class Pipeline:
         self.listener, self.translator, self.speaker, self.agent = listener, translator, speaker, agent
         # A listener that can turn Wolof speech straight into English (one call) does, unless WAXAL_DIRECT=off.
         # WAXAL_SHOW_WOLOF=1 also transcribes the Wolof (one more call) to show what was heard.
-        self.direct = hasattr(listener, "translate_audio") and (os.environ.get("WAXAL_DIRECT") or "on").lower() not in ("off", "0", "no")
+        # With WAXAL_REPLY_LANGUAGE=wo nothing is translated, so the Wolof text is needed: never the direct route.
+        self.direct = (REPLY_LANGUAGE != "wo" and hasattr(listener, "translate_audio")
+                       and (os.environ.get("WAXAL_DIRECT") or "on").lower() not in ("off", "0", "no"))
 
     def from_audio(self, user_id: str, recording: bytes, speak: bool = True) -> TurnResult:
         """A recording in any common format (browser webm, WhatsApp ogg...). speak=False: texts only, the voice comes later
@@ -64,23 +67,25 @@ class Pipeline:
         """Wolof text (typed, or already transcribed)."""
         result = TurnResult(wolof=wolof.strip())
         log.info("[1] Wolof: %s", result.wolof)
-        if result.wolof:
+        if result.wolof and REPLY_LANGUAGE != "wo":  # in Wolof mode the agent gets the Wolof itself
             result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
             log.info("[2] Wolof -> English: %s", result.english)
         return self._answer(user_id, result, speak)
 
     def _answer(self, user_id: str, result: TurnResult, speak: bool = True) -> TurnResult:
         """From the English the agent received: the agent's answer, in Wolof, spoken."""
-        if not result.english:
+        question = result.wolof if REPLY_LANGUAGE == "wo" else result.english  # Wolof mode: no translation
+        if not question:
             result.reply_english = NOT_HEARD
-            result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
-            if speak:
-                result.audio_wav = self._speak([result.reply_wolof], result)
             result.notes.append("nothing was heard")
+            if REPLY_LANGUAGE != "wo":  # in Wolof mode no Wolof is written by hand: the message stays text
+                result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
+                if speak:
+                    result.audio_wav = self._speak([result.reply_wolof], result)
             return result
-        log.info("[3] asking the agent: %s", result.english)
+        log.info("[3] asking the agent: %s", question)
         started = time.monotonic()
-        result.reply_english, notes = self.agent.ask(user_id, result.english)
+        result.reply_english, notes = self.agent.ask(user_id, question)
         result.notes += notes
         log.info("[3] agent answered (%.1f s): %s", time.monotonic() - started, result.reply_english)
         for note in notes:

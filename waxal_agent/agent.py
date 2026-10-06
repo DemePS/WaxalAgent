@@ -17,25 +17,12 @@ from .mt.claude_api import style_guide
 from .office_tools import register_office_tools
 from .voice_ui import VoiceUI
 
-# Read-only: a public channel must not change or delete files, run programs or browse. speak_wolof is how it answers.
-TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human",
-         "speak_wolof"]
-
-
-def _speak_wolof(text: str) -> str:
-    return state.ui.speak(text)
+# Read-only: a public channel must not change or delete files, run programs or browse. Its final reply is the answer.
+TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human"]
 
 
 def register_tools() -> None:
-    """The application's own tools, added with CodeAgent's register_tool: speak_wolof (how the agent answers), read_word, read_powerpoint."""
-    register_tool({
-        "name": "speak_wolof",
-        "description": ((f"Say your answer to the person: the text is spoken as a voice note exactly as you write it. "
-                         f"Call it once, with your whole short answer, written in correct {REPLY_LANGUAGE_NAME}.") if REPLY_LANGUAGE == "wo" else
-                        (f"Say your answer to the person: the text is translated into Wolof and spoken as a voice note. "
-                         f"Call it once, with your whole short answer, written in {REPLY_LANGUAGE_NAME}.")),
-        "input_schema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
-    }, _speak_wolof)
+    """The application's own tools, added with CodeAgent's register_tool: read_word, read_powerpoint."""
     register_office_tools()
 
 
@@ -44,7 +31,7 @@ register_tools()
 SYSTEM_PROMPT = """You are a helpful assistant that talks with people through spoken voice notes. You answer questions about \
 the documents of the library, the folder {documents} (the same documents for every person). You can only read them.
 
-Always write in {language}, whatever language the documents or the person's message are in: when you quote a document, translate what you quote. Give your answer to the person by calling speak_wolof once with the whole answer: {spoken}. So:
+Always write in {language}, whatever language the documents are in: when you quote a document, translate what you quote. Your final reply is your answer to the person, and nothing else: {spoken}. So:
 - Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
@@ -52,12 +39,17 @@ Always write in {language}, whatever language the documents or the person's mess
 - If you need a file you cannot find, say so and say what you would need.
 - You cannot change files or ask for approvals in this channel. Say clearly when something needs more than reading.
 - If you need to ask the person something, use ask_human with one very brief question (a few words, in {language}), then end your turn: they answer by voice in their next message.
-The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
+The person's words reached you through {heard}, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
-# What happens to the text of speak_wolof: translated into Wolof (the agent works in English or French), or spoken as it is (WAXAL_REPLY_LANGUAGE=wo).
-SPOKEN = ("it is spoken aloud exactly as you write it, so write correct Wolof in standard (CAADA) spelling, in short plain sentences, as it "
-          "would be said aloud" if REPLY_LANGUAGE == "wo" else "it is translated into Wolof by a machine and spoken aloud")
-SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{spoken}", SPOKEN)
+# What happens to the final reply: translated into Wolof (the agent works in English or French), or spoken as it is (WAXAL_REPLY_LANGUAGE=wo).
+if REPLY_LANGUAGE == "wo":
+    SPOKEN = ("it is spoken aloud exactly as you write it, so write correct Wolof in standard (CAADA) spelling, in short plain "
+              "sentences, as it would be said aloud")
+    HEARD = "speech recognition"
+else:
+    SPOKEN = "it is translated into Wolof by a machine and spoken aloud"
+    HEARD = "speech recognition and translation"
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{spoken}", SPOKEN).replace("{heard}", HEARD)
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{language}", REPLY_LANGUAGE_NAME)  # ({workspace} would be filled in by CodeAgent)
 
 
@@ -69,17 +61,13 @@ def user_folder(root: Path, user_id: str) -> Path:
     return folder
 
 
-def spoken_reply(reply: str, questions: list[str], spoken: list[str] = ()) -> str:
-    """What goes to Soynade and then to the person, and nothing else: the question the agent asked (ask_human); else
-    what it said with speak_wolof; else its final reply."""
-    for texts in (questions, spoken):
-        asked = [t.strip() for t in texts if t.strip()]
-        if asked:
-            return "\n".join(asked)
-    return reply.strip()
+def spoken_reply(reply: str, questions: list[str]) -> str:
+    """What is spoken to the person, and nothing else: the question the agent asked (ask_human); else its final reply."""
+    asked = [t.strip() for t in questions if t.strip()]
+    return "\n".join(asked) if asked else reply.strip()
 
 
-# Added to every spoken request: the reply is translated and spoken, so shorter is better.
+# Added to every spoken request: the reply is spoken, so shorter is better.
 CONCISE = f"Instructions: answer only from what you found in the library documents (say so if it is not there), always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
 
 
@@ -97,7 +85,7 @@ class AgentTurns:
         self._running = False
 
     def prompt_for_turn(self) -> str:
-        """The system prompt of this turn. When the agent writes the Wolof itself (WAXAL_REPLY_LANGUAGE=wo), the translation style guide
+        """The system prompt of this turn. When the agent writes the Wolof itself (WAXAL_REPLY_LANGUAGE=wo), the style guide
         (translation_style_prompt.md) is part of it: nobody else translates. Read at every turn, so a change applies at once."""
         style = style_guide() if REPLY_LANGUAGE == "wo" else ""
         return self.system_prompt + (f"\n\nStyle guide for the Wolof you write (follow it):\n{style}" if style else "")
@@ -110,7 +98,7 @@ class AgentTurns:
         return True
 
     def ask(self, user_id: str, english: str) -> tuple[str, list[str]]:
-        """(the agent's reply in English, notes about what went wrong or could not be done)."""
+        """(the agent's reply, notes about what went wrong or could not be done)."""
         folder = user_folder(self.root, user_id)
         ui = VoiceUI()
         failure = None
@@ -137,4 +125,4 @@ class AgentTurns:
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:
             notes.append(failure)
-        return spoken_reply(ui.reply, ui.questions, ui.spoken), notes
+        return spoken_reply(ui.reply, ui.questions), notes
