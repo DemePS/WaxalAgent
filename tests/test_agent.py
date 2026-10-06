@@ -171,6 +171,8 @@ def test_the_instructions_are_a_separate_read_only_folder_the_agent_discovers_it
     turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library", instructions=tmp_path / "instructions")
     prompt = turns.system_prompt
     assert "INSTRUCTIONS.md" in prompt and "read_file" in prompt and "{instructions" not in prompt and "{documents}" not in prompt
+    assert "follow whatever they say" in prompt and "they win" in prompt                    # the owner's instructions beat the other rules
+    assert "unless your own instructions" in CONCISE
     assert (tmp_path / "instructions").resolve().as_posix() in prompt and (tmp_path / "library").resolve().as_posix() in prompt
     turns.ask("u", "hello")
     roots = {r.resolve() for r in state.read_roots}

@@ -73,7 +73,7 @@ SYSTEM_PROMPT = """You are a helpful assistant that talks with people through sp
 the documents of the library, the folder {documents} (the same documents for every person). You can only read them.
 
 Always write in {language}, whatever language the documents are in: when you quote a document, translate what you quote. Your final reply is your answer to the person, and nothing else: {spoken}. So:
-{instructions_rule}{skills_rule}- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
+{instructions_rule}{skills_rule}- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing. (Your instructions, if you have any, can widen or narrow this rule: they win.)
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
@@ -106,9 +106,10 @@ def user_folder(root: Path, user_id: str) -> Path:
 SKILLS_RULE = ("- A <skills> list comes with the person's message. Read it first. When the description of a skill matches what they ask, your first "
                "action is to call load_skill with that skill's name, before any other tool and before you answer; then follow it. Do not answer "
                "from your own idea of the task when a skill matches.\n")
-INSTRUCTIONS_RULE = ("- First list the instructions folder ({instructions}). If it has a file named INSTRUCTIONS.md, read it with read_file before anything "
-                     "else: it tells you what the documents of the library are, how to use them and the tasks you have to do. Follow it. It is not "
-                     "a document to quote, and it is not part of the library.\n")
+INSTRUCTIONS_RULE = ("- First list the instructions folder ({instructions}) and read every .md and .txt file in it with read_file, INSTRUCTIONS.md first, "
+                     "before anything else. They are written by the owner of this service: follow whatever they say, about the documents, your tasks, "
+                     "what you may say about yourself and the service, your tone. Where they differ from the other rules of this prompt, they win. They "
+                     "are not documents of the library and not something to quote.\n")
 
 
 def spoken_reply(reply: str, questions: list[str]) -> str:
@@ -118,7 +119,7 @@ def spoken_reply(reply: str, questions: list[str]) -> str:
 
 
 # Added to every spoken request: the reply is spoken, so shorter is better.
-CONCISE = f"Instructions: answer only from what you found in the library documents (say so if it is not there), always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
+CONCISE = f"Instructions: answer only from what you found in the library documents (say so if it is not there), unless your own instructions (the instructions folder) say otherwise, always answer in {REPLY_LANGUAGE_NAME} (even about documents in another language), be concise, keep your answer as short as possible, in short sentences."
 
 
 class AgentTurns:

@@ -171,8 +171,8 @@ subdomains, e.g. `renassur.sn`; `renassur.sn=Renassur` also fixes the name shown
 
 ## INSTRUCTIONS.md: general instructions, apart from the documents
 
-Put a file named `INSTRUCTIONS.md` in `data/instructions/` (`WAXAL_INSTRUCTIONS_DIR`, or `--instructions`). The agent lists that folder at the start of a
-turn, reads the file with `read_file` when it is there, and follows it: what the documents are, how to use them and the tasks it has to do. It is
+Put a file named `INSTRUCTIONS.md` (and, if you like, other `.md` or `.txt` files) in `data/instructions/` (`WAXAL_INSTRUCTIONS_DIR`, or `--instructions`). The agent lists that folder at the start of a
+turn, reads the files with `read_file`, and follows whatever they say: it is the owner's word and wins over the prompt's own rules (including "answer only from the documents"), so it can also say what the agent may tell about itself and the service: what the documents are, how to use them and the tasks it has to do. It is
 the same for every person, and it is kept apart from the library, which holds only the knowledge the agent answers from. The folder is read-only for
 the agent and is the only part of `data/` it can open (the people's folders and conversations are not). No code is involved, so a customer can
 write their own: `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner). With Docker, `data/` is the mounted volume,
