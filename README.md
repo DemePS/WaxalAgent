@@ -177,3 +177,13 @@ the same for every person, and it is kept apart from the library, which holds on
 the agent and is the only part of `data/` it can open (the people's folders and conversations are not). No code is involved, so a customer can
 write their own: `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner). With Docker, `data/` is the mounted volume,
 so edit the file there.
+
+## Streaming a turn
+
+`POST /api/turn/stream` (the recording as the body) and `POST /api/text/stream` (`{"text": "<Wolof>"}`) answer with JSON lines, each sent as soon as it
+exists: `heard` (what was understood), `answer` (the agent's answer and the links it shared), then for each piece of the answer a `text` (its Wolof)
+followed by the `audio` chunks of its voice, and `done` with the notes (`note` and `error` events tell what went wrong). After the agent has answered,
+the answer is cut into small pieces that are all translated at the same time; the first piece is spoken as soon as it is translated, while the others
+still are, and the voice of each piece is streamed while ElevenLabs makes it (`audio/mpeg`; a speaker that cannot stream sends one WAV clip per piece).
+The test page uses these routes. `/api/turn` and `/api/text` (one JSON answer) are unchanged, and so is WhatsApp, which needs finished files; the
+pieces of its answer are translated at the same time too.

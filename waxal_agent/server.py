@@ -70,6 +70,40 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
                 log.exception("The turn failed")
                 raise HTTPException(502, f"{type(e).__name__}: {e}"[:500])
 
+        def ndjson(user_id: str, result: TurnResult):
+            """The rest of the turn as a stream of JSON lines (pipeline.stream_turn): texts and voice go out while the next pieces are made."""
+            return StreamingResponse((json.dumps(event, ensure_ascii=False) + "\n" for event in pipeline.stream_turn(user_id, result)),
+                                     media_type="application/x-ndjson", headers={"cache-control": "no-store"})
+
+        @app.post("/api/turn/stream")
+        async def turn_stream(request: Request):
+            """Like /api/turn, but streamed: the recording is understood first (errors are a normal 4xx/5xx), then JSON lines."""
+            check(request)
+            data = await request.body()
+            if not data:
+                raise HTTPException(400, "No audio received.")
+            if len(data) > MAX_RECORDING_BYTES:
+                raise HTTPException(413, "The recording is too long.")
+            try:
+                result = await run_in_threadpool(pipeline.hear_audio, data)
+            except AudioError as e:
+                raise HTTPException(400, str(e))
+            except Exception as e:
+                log.exception("The turn failed")
+                raise HTTPException(502, f"{type(e).__name__}: {e}"[:500])
+            return ndjson(user_of(request), result)
+
+        @app.post("/api/text/stream")
+        async def text_stream(request: Request, body: TextIn):
+            """Like /api/text, but streamed (see /api/turn/stream)."""
+            check(request)
+            try:
+                result = await run_in_threadpool(pipeline.hear_wolof, body.text)
+            except Exception as e:
+                log.exception("The turn failed")
+                raise HTTPException(502, f"{type(e).__name__}: {e}"[:500])
+            return ndjson(user_of(request), result)
+
         @app.post("/api/transcribe")
         async def transcribe(request: Request):
             """Only the recogniser: a recording in, the Wolof words out (to try speech recognition on its own)."""

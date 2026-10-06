@@ -1,9 +1,11 @@
 """The whole turn: Wolof speech -> Wolof text -> English -> the agent -> English -> Wolof -> Wolof speech.
 With WAXAL_REPLY_LANGUAGE=wo there is no translation at all: Wolof text -> the agent (reads and writes Wolof) -> Wolof speech."""
 
+import base64
 import logging
 import os
 import time
+from concurrent.futures import ThreadPoolExecutor
 from dataclasses import dataclass, field
 from typing import Protocol
 
@@ -17,6 +19,8 @@ from .tts.base import Speaker, SpeechUnavailable
 
 log = logging.getLogger("waxal.turn")
 SPEECH_LIMIT = 450  # Soynade's text-to-speech refuses more than 500 characters per call
+STREAM_PIECE = 200  # a streamed reply is translated in small pieces, so that the first one is spoken early
+TRANSLATION_WORKERS = 4  # pieces translated at the same time
 NOT_HEARD = "I did not hear anything. Please try again."  # translated like every reply: no Wolof is written by hand here
 
 
@@ -47,10 +51,14 @@ class Pipeline:
     def from_audio(self, user_id: str, recording: bytes, speak: bool = True) -> TurnResult:
         """A recording in any common format (browser webm, WhatsApp ogg...). speak=False: texts only, the voice comes later
         from speak_text (a slow or failing speech service then never delays the answer)."""
+        return self._answer(user_id, self.hear_audio(recording), speak)
+
+    def hear_audio(self, recording: bytes) -> TurnResult:
+        """The first half of a turn: the recording understood (recognised, and translated into English when the agent works in it)."""
         wav = audio.to_wav(recording)
         log.info("[1] heard a recording: %.1f s of audio", len(wav) / 32000)
         if not self.direct:
-            return self.from_wolof(user_id, self.listener.transcribe(wav), speak)
+            return self.hear_wolof(self.listener.transcribe(wav))
         result = TurnResult()
         if os.environ.get("WAXAL_SHOW_WOLOF") in ("1", "on", "yes"):
             result.wolof = self.listener.transcribe(wav).strip()
@@ -58,7 +66,7 @@ class Pipeline:
         started = time.monotonic()
         result.english = self.listener.translate_audio(wav).strip()
         log.info("[2] speech -> English (%.1f s): %s", time.monotonic() - started, result.english)
-        return self._answer(user_id, result, speak)
+        return result
 
     def transcribe(self, recording: bytes) -> str:
         """Only listen: what was said, in Wolof (no translation, no agent)."""
@@ -66,12 +74,15 @@ class Pipeline:
 
     def from_wolof(self, user_id: str, wolof: str, speak: bool = True) -> TurnResult:
         """Wolof text (typed, or already transcribed)."""
+        return self._answer(user_id, self.hear_wolof(wolof), speak)
+
+    def hear_wolof(self, wolof: str) -> TurnResult:
         result = TurnResult(wolof=wolof.strip())
         log.info("[1] Wolof: %s", result.wolof)
         if result.wolof and REPLY_LANGUAGE != "wo":  # in Wolof mode the agent gets the Wolof itself
             result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
             log.info("[2] Wolof -> English: %s", result.english)
-        return self._answer(user_id, result, speak)
+        return result
 
     def _ask(self, user_id: str, question: str):
         """(reply, notes, links): an agent that shares links answers with ask_full, any other with ask."""
@@ -81,17 +92,10 @@ class Pipeline:
         reply, notes = self.agent.ask(user_id, question)
         return reply, notes, []
 
-    def _answer(self, user_id: str, result: TurnResult, speak: bool = True) -> TurnResult:
-        """From the English the agent received: the agent's answer, in Wolof, spoken."""
+    def _ask_agent(self, user_id: str, result: TurnResult) -> str:
+        """Ask the agent what `result` understood. Fills the answer, the notes and the links; returns the speakable text ("" when the agent
+        gave nothing to say)."""
         question = result.wolof if REPLY_LANGUAGE == "wo" else result.english  # Wolof mode: no translation
-        if not question:
-            result.reply_english = NOT_HEARD
-            result.notes.append("nothing was heard")
-            if REPLY_LANGUAGE != "wo":  # in Wolof mode no Wolof is written by hand: the message stays text
-                result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
-                if speak:
-                    result.audio_wav = self._speak([result.reply_wolof], result)
-            return result
         log.info("[3] asking the agent: %s", question)
         started = time.monotonic()
         result.reply_english, notes, result.links = self._ask(user_id, question)
@@ -102,9 +106,29 @@ class Pipeline:
         spoken = speakable(result.reply_english)
         if not spoken:
             result.notes.append("the agent gave no answer")
+        return spoken
+
+    def _translate_pieces(self, pieces: list[str], pool: ThreadPoolExecutor) -> list:
+        """The pieces of the answer on their way to Wolof, all at once: a list of futures, in order. A Wolof answer is not translated."""
+        if TRANSLATION_SOURCE == "wo":
+            return [_done(p) for p in pieces]
+        return [pool.submit(self.translator.translate, p, TRANSLATION_SOURCE, "wo") for p in pieces]
+
+    def _answer(self, user_id: str, result: TurnResult, speak: bool = True) -> TurnResult:
+        """From what was understood: the agent's answer, in Wolof, spoken."""
+        if not (result.wolof if REPLY_LANGUAGE == "wo" else result.english):
+            result.reply_english = NOT_HEARD
+            result.notes.append("nothing was heard")
+            if REPLY_LANGUAGE != "wo":  # in Wolof mode no Wolof is written by hand: the message stays text
+                result.reply_wolof = self.translator.translate(NOT_HEARD, "en", "wo")
+                if speak:
+                    result.audio_wav = self._speak([result.reply_wolof], result)
             return result
-        parts = list(chunks(spoken)) if TRANSLATION_SOURCE == "wo" else [  # a Wolof reply is spoken as it is
-            self.translator.translate(s, TRANSLATION_SOURCE, "wo") for s in chunks(spoken)]
+        spoken = self._ask_agent(user_id, result)
+        if not spoken:
+            return result
+        with ThreadPoolExecutor(TRANSLATION_WORKERS) as pool:  # the pieces are translated at the same time
+            parts = [f.result() for f in self._translate_pieces(list(chunks(spoken)), pool)]
         result.reply_wolof = " ".join(parts)
         log.info("[4] reply -> Wolof: %s", result.reply_wolof)
         if speak:
@@ -112,6 +136,63 @@ class Pipeline:
             result.audio_wav = self._speak(parts, result)
             log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))
         return result
+
+    def stream_turn(self, user_id: str, result: TurnResult):
+        """The second half of a turn as a stream of events (dicts), each sent as soon as it exists:
+
+            {"event": "heard", "wolof", "english"}      what was understood
+            {"event": "answer", "reply_english", "links"}  the agent's answer (the links it shared)
+            {"event": "text", "wolof"}                   a piece of the answer in Wolof, once translated
+            {"event": "audio", "media", "data"}          a chunk of the voice (base64): audio/mpeg to append to one player, or a whole audio/wav clip
+            {"event": "note", "text"}                    something that went wrong with the voice
+            {"event": "done", "reply_wolof", "notes", "links"}   or {"event": "error", "message"}
+
+        The answer is split into small pieces, all translated at the same time; the first piece is spoken as soon as it is translated, while
+        the others still are. The voice of each piece is streamed as it is made."""
+        yield {"event": "heard", "wolof": result.wolof, "english": result.english}
+        pool = ThreadPoolExecutor(TRANSLATION_WORKERS)
+        try:
+            if not (result.wolof if REPLY_LANGUAGE == "wo" else result.english):
+                result.notes.append("nothing was heard")
+                yield {"event": "done", "reply_english": NOT_HEARD, "reply_wolof": "", "notes": result.notes, "links": []}
+                return
+            spoken = self._ask_agent(user_id, result)
+            yield {"event": "answer", "reply_english": result.reply_english, "links": result.links}
+            texts: list[str] = []
+            voice = bool(spoken)
+            for future in self._translate_pieces(list(chunks(spoken, STREAM_PIECE)), pool):
+                text = future.result()
+                texts.append(text)
+                yield {"event": "text", "wolof": text}
+                if voice:
+                    try:
+                        for media, data in self._voice(text):
+                            yield {"event": "audio", "media": media, "data": base64.b64encode(data).decode("ascii")}
+                    except (SpeechUnavailable, SoynadeError) as e:
+                        log.warning("[5] speech failed: %s", e)
+                        result.notes.append(f"No voice: {e}")
+                        yield {"event": "note", "text": f"No voice: {e}"}
+                        voice = False  # the texts are still delivered
+            result.reply_wolof = " ".join(texts)
+            log.info("[4] reply -> Wolof: %s", result.reply_wolof)
+            yield {"event": "done", "reply_english": result.reply_english, "reply_wolof": result.reply_wolof,
+                   "notes": result.notes, "links": result.links}
+        except Exception as e:  # the turn failed: the page is told, the stream ends
+            log.exception("The streamed turn failed")
+            yield {"event": "error", "message": f"{type(e).__name__}: {e}"[:500]}
+        finally:
+            pool.shutdown(wait=False, cancel_futures=True)
+
+    def _voice(self, text: str):
+        """(media type, bytes) chunks of the voice of a Wolof text: streamed when the speaker can, else one WAV clip per piece."""
+        stream = getattr(self.speaker, "speak_stream", None)
+        for piece in chunks(text, SPEECH_LIMIT):
+            if stream is None:
+                yield "audio/wav", self.speaker.speak(piece)
+            else:
+                media, body = stream(piece)
+                for data in body:
+                    yield media, data
 
     def stop(self) -> bool:
         """Ask the agent to stop its running turn; False when it has none."""
@@ -159,6 +240,14 @@ class Pipeline:
             log.warning("[5] speech failed: %s", e)
             result.notes.append(f"No voice: {e}")
             return b""
+
+
+def _done(value):
+    """A future that is already finished (a piece that needs no translation)."""
+    from concurrent.futures import Future
+    future: Future = Future()
+    future.set_result(value)
+    return future
 
 
 def _join_wavs(wavs: list[bytes]) -> bytes:

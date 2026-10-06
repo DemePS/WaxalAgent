@@ -45,23 +45,6 @@ const talk = document.getElementById('talk'), statusEl = document.getElementById
 let recorder = null, chunks = [], stream = null, startedAt = 0, discard = false, holding = false;
 const MIN_MS = 800; // a click is not a message
 
-function show(r) {
-  const div = document.createElement('div'); div.className = 'turn';
-  const add = (label, text, cls) => { if (!text) return;
-    const l = document.createElement('div'); l.className = 'label'; l.textContent = label;
-    const p = document.createElement('p'); p.textContent = text; if (cls) p.className = cls; div.append(l, p); };
-  add('Heard (Wolof)', r.wolof); add('Understood (English)', r.english);
-  add('Answer (English)', r.reply_english); add('Answer (Wolof)', r.reply_wolof);
-  if ((r.links || []).length) { const l = document.createElement('div'); l.className = 'label'; l.textContent = 'Links';
-    const p = document.createElement('p');
-    r.links.forEach((k, i) => { if (i) p.append(' · '); const a = document.createElement('a'); a.href = k.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = k.label; p.append(a); });
-    div.append(l, p); }
-  (r.notes || []).forEach(n => add('Note', n, 'note'));
-  if (r.audio) { const a = document.createElement('audio'); a.controls = true; a.src = `data:${r.audio_type};base64,${r.audio}`; div.append(a); a.play().catch(() => {}); }
-  turns.prepend(div);
-  return div;
-}
-
 // Sound: an AudioContext started by the person's own click keeps playing when the tab is in the background (an <audio>
 // element started later by the page is often blocked there). If it cannot play, the tab title says the answer is ready and
 // the audio plays when the tab is shown again.
@@ -70,36 +53,9 @@ const baseTitle = document.title;
 function unlockAudio() {
   try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch { /* falls back to <audio> */ }
 }
-async function playVoice(el, bytes) {
-  try {
-    if (!audioCtx || audioCtx.state !== 'running') throw new Error('audio locked');
-    const buffer = await audioCtx.decodeAudioData(bytes.buffer.slice(0));
-    const source = audioCtx.createBufferSource(); source.buffer = buffer; source.connect(audioCtx.destination); source.start();
-    return;
-  } catch { /* try the element */ }
-  await playElement(el);
-}
 async function playElement(el) {
   try { await el.play(); }
   catch { pendingAudio = el; if (document.hidden) document.title = '🔊 Answer ready - ' + baseTitle; }
-}
-// Plays an audio/mpeg stream while it arrives (MediaSource); `started` is called when the first bytes are in the player.
-function streamInto(el, body, started) {
-  return new Promise((resolve, reject) => {
-    const ms = new MediaSource(); el.src = URL.createObjectURL(ms);
-    ms.addEventListener('sourceopen', async () => {
-      const buffer = ms.addSourceBuffer('audio/mpeg'), reader = body.getReader(); let first = true;
-      const append = chunk => new Promise((ok, fail) => {
-        buffer.addEventListener('updateend', ok, { once: true }); buffer.addEventListener('error', () => fail(new Error('The audio could not be played.')), { once: true });
-        buffer.appendBuffer(chunk); });
-      try {
-        for (;;) { const { done, value } = await reader.read(); if (done) break; await append(value); if (first) { first = false; started(); } }
-        if (first) throw new Error('No voice.');
-        if (ms.readyState === 'open') ms.endOfStream();
-        resolve();
-      } catch (e) { reject(e); }
-    }, { once: true });
-  });
 }
 document.addEventListener('visibilitychange', () => { if (!document.hidden) { document.title = baseTitle;
   if (pendingAudio) { pendingAudio.play().catch(() => {}); pendingAudio = null; } } });
@@ -110,36 +66,67 @@ function working(on) { talk.disabled = on; cancelBtn.hidden = !on; }
 cancelBtn.addEventListener('click', () => { if (controller) controller.abort(); fetch('/api/stop', { method: 'POST', headers: headers() }).catch(() => {});
   statusEl.textContent = 'Stopped.'; });
 
-// The texts are shown first; the voice is asked for afterwards, so a slow or failing speech service never delays the answer.
-// It is streamed (/api/speak/stream): playing starts with the first bytes when the browser can play audio/mpeg from a MediaSource,
-// else the whole clip is waited for.
-async function addVoice(div, text, signal) {
-  const note = document.createElement('p'); note.className = 'note'; note.textContent = 'Preparing the voice…'; div.append(note);
-  try {
-    const res = await fetch('/api/speak/stream', { method: 'POST', signal, headers: headers({ 'content-type': 'application/json' }), body: JSON.stringify({ text }) });
-    if (!res.ok) { const r = await res.json().catch(() => ({})); throw new Error(r.detail || `Error ${res.status}`); }
-    const a = document.createElement('audio'); a.controls = true;
-    const type = (res.headers.get('content-type') || '').split(';')[0];
-    if (type === 'audio/mpeg' && res.body && window.MediaSource && MediaSource.isTypeSupported('audio/mpeg')) {
-      await streamInto(a, res.body, () => { note.replaceWith(a); playElement(a); });
-    } else {
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      if (!bytes.length) throw new Error('No voice.');
-      a.src = URL.createObjectURL(new Blob([bytes], { type: type || 'audio/wav' }));
-      note.replaceWith(a); await playVoice(a, bytes);
+// The voice of a streamed turn. audio/mpeg chunks are appended to one player while they arrive (MediaSource); when the browser cannot do that,
+// or the speaker sends whole WAV clips, the clips are played one after the other.
+class Voice {
+  constructor(onReady) { this.onReady = onReady; this.el = null; this.mode = null; this.queue = []; this.finished = false; this.clips = []; this.next = 0; }
+  push(media, b64) {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    if (!this.el) {
+      this.el = document.createElement('audio'); this.el.controls = true;
+      this.mode = media === 'audio/mpeg' && window.MediaSource && MediaSource.isTypeSupported('audio/mpeg') ? 'stream' : 'clips';
+      if (this.mode === 'stream') {
+        this.ms = new MediaSource(); this.el.src = URL.createObjectURL(this.ms);
+        this.ms.addEventListener('sourceopen', () => { this.buffer = this.ms.addSourceBuffer('audio/mpeg');
+          this.buffer.addEventListener('updateend', () => this.pump()); this.pump(); }, { once: true });
+      } else { this.el.addEventListener('ended', () => this.playNext()); }
+      this.onReady(this.el);
     }
-  } catch (e) { note.textContent = e.name === 'AbortError' ? 'Voice stopped.' : 'No voice: ' + e.message; }
+    if (this.mode === 'stream') { this.queue.push(bytes); this.pump(); }
+    else { this.clips.push(URL.createObjectURL(new Blob([bytes], { type: media }))); if (this.next === this.clips.length - 1 && (this.el.ended || !this.el.src)) this.playNext(); }
+  }
+  pump() {
+    if (!this.buffer || this.buffer.updating) return;
+    if (this.queue.length) { try { this.buffer.appendBuffer(this.queue.shift()); } catch { /* a closed player: nothing to feed */ } }
+    else if (this.finished && this.ms.readyState === 'open') { try { this.ms.endOfStream(); } catch { /* already closed */ } }
+  }
+  playNext() { if (this.next < this.clips.length) { this.el.src = this.clips[this.next++]; playElement(this.el); } }
+  end() { this.finished = true; if (this.mode === 'stream') this.pump(); }
 }
 
+// A turn is streamed (/api/turn/stream, /api/text/stream): JSON lines, each shown as it arrives: what was heard, the agent's answer, each piece of the
+// Wolof answer once translated, and the voice of each piece while the next ones are still being translated.
 async function send(path, body, type) {
   working(true); statusEl.textContent = 'Working…'; controller = new AbortController();
+  const div = document.createElement('div'); div.className = 'turn';
+  let wolofLine = null, voice = null;
+  const line = (label, text, cls) => { if (!text) return null;
+    const l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    const p = document.createElement('p'); p.textContent = text; if (cls) p.className = cls; div.append(l, p); return p; };
+  const links = list => { if (!(list || []).length) return; const l = document.createElement('div'); l.className = 'label'; l.textContent = 'Links';
+    const p = document.createElement('p');
+    list.forEach((k, i) => { if (i) p.append(' · '); const a = document.createElement('a'); a.href = k.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = k.label; p.append(a); });
+    div.append(l, p); };
+  const handle = e => {
+    if (e.event === 'heard') { line('Heard (Wolof)', e.wolof); line('Understood (English)', e.english); turns.prepend(div); statusEl.textContent = 'The agent is working…'; }
+    else if (e.event === 'answer') { line('Answer (English)', e.reply_english); links(e.links); statusEl.textContent = 'Translating…'; }
+    else if (e.event === 'text') { if (wolofLine) wolofLine.textContent += ' ' + e.wolof; else wolofLine = line('Answer (Wolof)', e.wolof); }
+    else if (e.event === 'audio') { voice = voice || new Voice(el => { div.append(el); playElement(el); }); voice.push(e.media, e.data); statusEl.textContent = ''; }
+    else if (e.event === 'note') line('Note', e.text, 'note');
+    else if (e.event === 'done') { if (!wolofLine && e.reply_english) line('Answer', e.reply_english);
+      (e.notes || []).filter(n => !n.startsWith('No voice')).forEach(n => line('Note', n, 'note')); if (voice) voice.end(); statusEl.textContent = ''; }
+    else if (e.event === 'error') { statusEl.textContent = e.message; }
+    else if (!e.event && e.wolof !== undefined) { line('Heard (Wolof)', e.wolof); turns.prepend(div); }  // /api/transcribe: one plain JSON answer
+  };
   try {
-    const res = await fetch(path + (path.includes('?') ? '&' : '?') + 'speak=0', { method: 'POST', signal: controller.signal, headers: headers({ 'content-type': type }), body });
-    const data = await res.json().catch(() => ({}));
-    if (!res.ok) throw new Error(data.detail || `Error ${res.status}`);
-    const div = show(data); statusEl.textContent = '';
-    if (data.reply_wolof) { cancelBtn.hidden = false; await addVoice(div, data.reply_wolof, controller.signal); }
-  } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = e.message; } finally { working(false); controller = null; }
+    const res = await fetch(path, { method: 'POST', signal: controller.signal, headers: headers({ 'content-type': type }), body });
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.detail || `Error ${res.status}`); }
+    const reader = res.body.getReader(), decoder = new TextDecoder(); let rest = '';
+    for (;;) { const { done, value } = await reader.read(); if (done) break;
+      rest += decoder.decode(value, { stream: true }); const lines = rest.split('\n'); rest = lines.pop();
+      lines.filter(Boolean).forEach(l => handle(JSON.parse(l))); }
+    if (rest.trim()) handle(JSON.parse(rest));
+  } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = e.message; else if (voice) voice.end(); } finally { working(false); controller = null; }
 }
 
 
@@ -153,7 +140,7 @@ async function start() {
   recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: recorder.mimeType }); recorder = null;
     if (discard) { statusEl.textContent = 'Cancelled: nothing was sent.'; return; }
     if (Date.now() - startedAt < MIN_MS || blob.size < 1000) { statusEl.textContent = 'Too short, nothing was sent: hold the button while you speak.'; return; }
-    send(document.getElementById('only').checked ? '/api/transcribe' : '/api/turn', blob, blob.type || 'application/octet-stream'); };
+    send(document.getElementById('only').checked ? '/api/transcribe' : '/api/turn/stream', blob, blob.type || 'application/octet-stream'); };
   discard = false; startedAt = Date.now();
   recorder.start(); talk.classList.add('rec'); talk.textContent = 'Listening… release to send, move away to cancel'; statusEl.textContent = '';
 }
@@ -164,7 +151,7 @@ talk.addEventListener('pointerup', () => { holding = false; stop(false); });
 ['pointerleave', 'pointercancel'].forEach(t => talk.addEventListener(t, () => { holding = false; stop(true); }));
 document.getElementById('typed').addEventListener('submit', e => { e.preventDefault();
   unlockAudio(); const line = document.getElementById('line'); const text = line.value.trim(); if (!text) return; line.value = '';
-  send('/api/text', JSON.stringify({ text }), 'application/json'); });
+  send('/api/text/stream', JSON.stringify({ text }), 'application/json'); });
 </script>
 </body>
 </html>
