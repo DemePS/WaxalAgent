@@ -14,7 +14,18 @@ def build_pipeline(engines: str, data: str, documents: str | None = None, refres
     return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh))
 
 
+def load_env() -> None:
+    """The settings of a .env file, before anything reads os.environ (the engines, the documents folder...): the first .env found from
+    the folder you run in upwards, then ~/.coding-agent/.env, as CodeAgent does. A variable already set in the environment wins."""
+    from pathlib import Path
+
+    from dotenv import find_dotenv, load_dotenv
+    load_dotenv(find_dotenv(usecwd=True))
+    load_dotenv(Path(os.environ.get("HOME") or Path.home()).expanduser() / ".coding-agent" / ".env")
+
+
 def main() -> None:
+    load_env()
     parser = argparse.ArgumentParser(prog="waxal-agent", description="A Wolof voice agent.")
     sub = parser.add_subparsers(dest="command", required=True)
     serve = sub.add_parser("serve", help="Start the web server with the test page.")

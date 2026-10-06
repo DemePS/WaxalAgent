@@ -140,3 +140,16 @@ def test_the_start_up_message_reports_the_real_engines(monkeypatch):
     monkeypatch.setenv("WAXAL_MT", "Soynade")
     monkeypatch.setenv("WAXAL_TTS", "huggingface")
     assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "soynade", "tts": "huggingface"}
+
+
+def test_a_key_in_a_dot_env_file_is_seen_before_the_engines_are_chosen(tmp_path, monkeypatch):
+    from waxal_agent.cli import load_env
+    (tmp_path / ".env").write_text("ELEVENLABS_API_KEY=from-the-file\nWAXAL_TEST_SET=file\n")
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setenv("HOME", str(tmp_path / "home"))
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+    monkeypatch.setenv("WAXAL_TEST_SET", "environment")  # a real variable wins over the file
+    load_env()
+    import os
+    assert os.environ["ELEVENLABS_API_KEY"] == "from-the-file" and os.environ["WAXAL_TEST_SET"] == "environment"
+    monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
