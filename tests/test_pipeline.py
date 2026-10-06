@@ -153,3 +153,12 @@ def test_a_key_in_a_dot_env_file_is_seen_before_the_engines_are_chosen(tmp_path,
     import os
     assert os.environ["ELEVENLABS_API_KEY"] == "from-the-file" and os.environ["WAXAL_TEST_SET"] == "environment"
     monkeypatch.delenv("ELEVENLABS_API_KEY", raising=False)
+
+
+def test_the_pdf_library_does_not_flood_the_terminal_with_font_warnings():
+    import logging
+    from waxal_agent.cli import quiet_loggers
+    quiet_loggers()
+    for name in ("pypdf", "pypdf._cmap", "httpx", "azure.identity"):
+        assert logging.getLogger(name).getEffectiveLevel() >= logging.WARNING, name
+    assert not logging.getLogger("pypdf._cmap").isEnabledFor(logging.WARNING)

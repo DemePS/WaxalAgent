@@ -14,6 +14,15 @@ def build_pipeline(engines: str, data: str, documents: str | None = None, refres
     return Pipeline(listener, translator, speaker, AgentTurns(data, documents=documents, refresh=refresh))
 
 
+def quiet_loggers() -> None:
+    """Libraries whose log lines only pollute the terminal: httpx logs one line per HTTP request, azure.identity its credential
+    probing, pypdf a warning per font and page while it reads a PDF (a long PDF prints thousands of them)."""
+    import logging
+    logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("azure").setLevel(logging.WARNING)
+    logging.getLogger("pypdf").setLevel(logging.ERROR)
+
+
 def load_env() -> None:
     """The settings of a .env file, before anything reads os.environ (the engines, the documents folder...): the first .env found from
     the folder you run in upwards, then ~/.coding-agent/.env, as CodeAgent does. A variable already set in the environment wins."""
@@ -44,8 +53,7 @@ def main() -> None:
 
     logging.basicConfig(level=os.environ.get("WAXAL_LOG", "INFO").upper(), format="%(asctime)s %(levelname)s %(message)s",
                         datefmt="%H:%M:%S")
-    logging.getLogger("httpx").setLevel(logging.WARNING)  # one line per HTTP request adds nothing here
-    logging.getLogger("azure").setLevel(logging.WARNING)  # azure.identity logs its credential probing at INFO
+    quiet_loggers()
     from . import certs
     from . import maintenance
     maintenance.start()  # old conversations and notes: once now, then daily
