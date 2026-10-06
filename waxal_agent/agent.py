@@ -12,7 +12,8 @@ from pathlib import Path
 
 from coding_agent import register_tool, session, state
 
-from .language import REPLY_LANGUAGE_NAME
+from .language import REPLY_LANGUAGE, REPLY_LANGUAGE_NAME
+from .mt.claude_api import style_guide
 from .office_tools import register_office_tools
 from .voice_ui import VoiceUI
 
@@ -29,8 +30,10 @@ def register_tools() -> None:
     """The application's own tools, added with CodeAgent's register_tool: speak_wolof (how the agent answers), read_word, read_powerpoint."""
     register_tool({
         "name": "speak_wolof",
-        "description": (f"Say your answer to the person: the text is translated into Wolof and spoken as a voice note. "
-                        f"Call it once, with your whole short answer, written in {REPLY_LANGUAGE_NAME}."),
+        "description": ((f"Say your answer to the person: the text is spoken as a voice note exactly as you write it. "
+                         f"Call it once, with your whole short answer, written in correct {REPLY_LANGUAGE_NAME}.") if REPLY_LANGUAGE == "wo" else
+                        (f"Say your answer to the person: the text is translated into Wolof and spoken as a voice note. "
+                         f"Call it once, with your whole short answer, written in {REPLY_LANGUAGE_NAME}.")),
         "input_schema": {"type": "object", "properties": {"text": {"type": "string"}}, "required": ["text"]},
     }, _speak_wolof)
     register_office_tools()
@@ -41,7 +44,7 @@ register_tools()
 SYSTEM_PROMPT = """You are a helpful assistant that talks with people through spoken voice notes. You answer questions about \
 the documents of the library, the folder {documents} (the same documents for every person). You can only read them.
 
-Always write in {language}, whatever language the documents or the person's message are in: when you quote a document, translate what you quote. Give your answer to the person by calling speak_wolof once with the whole answer: it is translated into Wolof by a machine and spoken aloud. So:
+Always write in {language}, whatever language the documents or the person's message are in: when you quote a document, translate what you quote. Give your answer to the person by calling speak_wolof once with the whole answer: {spoken}. So:
 - Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing.
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
@@ -51,6 +54,10 @@ Always write in {language}, whatever language the documents or the person's mess
 - If you need to ask the person something, use ask_human with one very brief question (a few words, in {language}), then end your turn: they answer by voice in their next message.
 The person's words reached you through speech recognition and translation, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
+# What happens to the text of speak_wolof: translated into Wolof (the agent works in English or French), or spoken as it is (WAXAL_REPLY_LANGUAGE=wo).
+SPOKEN = ("it is spoken aloud exactly as you write it, so write correct Wolof in standard (CAADA) spelling, in short plain sentences, as it "
+          "would be said aloud" if REPLY_LANGUAGE == "wo" else "it is translated into Wolof by a machine and spoken aloud")
+SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{spoken}", SPOKEN)
 SYSTEM_PROMPT = SYSTEM_PROMPT.replace("{language}", REPLY_LANGUAGE_NAME)  # ({workspace} would be filled in by CodeAgent)
 
 
@@ -89,6 +96,12 @@ class AgentTurns:
         self._lock = threading.Lock()
         self._running = False
 
+    def prompt_for_turn(self) -> str:
+        """The system prompt of this turn. When the agent writes the Wolof itself (WAXAL_REPLY_LANGUAGE=wo), the translation style guide
+        (translation_style_prompt.md) is part of it: nobody else translates. Read at every turn, so a change applies at once."""
+        style = style_guide() if REPLY_LANGUAGE == "wo" else ""
+        return self.system_prompt + (f"\n\nStyle guide for the Wolof you write (follow it):\n{style}" if style else "")
+
     def stop(self) -> bool:
         """Stop the turn that is running (it ends at the next model call and is rolled back). False when none is running."""
         if not self._running:
@@ -107,7 +120,7 @@ class AgentTurns:
         if personal.is_dir() and any(personal.iterdir()):
             english += f"\n\nThis person also has their own documents in {personal.as_posix()}: read them too."
         with self._lock:
-            session.open_project(folder, ui=ui, tools=self.tools, system_prompt=self.system_prompt, resume=True)
+            session.open_project(folder, ui=ui, tools=self.tools, system_prompt=self.prompt_for_turn(), resume=True)
             if self.documents:
                 self.documents.mkdir(parents=True, exist_ok=True)
                 session.add_read_folder(self.documents)

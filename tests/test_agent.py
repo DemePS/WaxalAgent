@@ -147,3 +147,26 @@ def test_the_shared_library_is_a_read_only_folder_and_the_prompt_says_where_it_i
     assert added == [library.resolve()] and library.is_dir()                       # created, and granted for reading only
     assert library.resolve().as_posix() in seen[0] and "{documents}" not in seen[0]
     assert (tmp_path / "users" / "221771234567").is_dir()                          # the person's own folder holds only their conversation
+
+
+def test_the_style_guide_is_part_of_the_prompt_only_when_the_agent_writes_the_wolof(tmp_path, monkeypatch):
+    style = tmp_path / "translation_style_prompt.md"
+    style.write_text("Write *jàmm*.", encoding="utf-8")
+    monkeypatch.setenv("WAXAL_TRANSLATION_STYLE", str(style))
+    turns = AgentTurns(tmp_path / "users")
+    assert turns.prompt_for_turn() == turns.system_prompt                       # English: the translator uses the guide, not the agent
+    monkeypatch.setattr(module, "REPLY_LANGUAGE", "wo")
+    assert turns.prompt_for_turn().startswith(turns.system_prompt) and "Write *jàmm*." in turns.prompt_for_turn()
+    style.write_text("Say *jërejëf*.", encoding="utf-8")                        # read at every turn
+    assert "jërejëf" in turns.prompt_for_turn() and "jàmm" not in turns.prompt_for_turn()
+
+
+def test_the_prompt_and_the_tool_say_what_really_happens_to_the_text():
+    import subprocess
+    import sys
+    code = ("from waxal_agent import agent; from coding_agent.tools import TOOL_HANDLERS; "
+            "print(agent.SPOKEN); print(agent.SYSTEM_PROMPT.count('machine'))")
+    for language, spoken, machine in (("en", "translated into Wolof by a machine", "1"), ("wo", "exactly as you write it", "0")):
+        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
+                             env={**__import__("os").environ, "WAXAL_REPLY_LANGUAGE": language}).stdout
+        assert spoken in out and out.strip().endswith(machine), out
