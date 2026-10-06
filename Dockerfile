@@ -33,6 +33,10 @@ ARG LIBRARY=library
 COPY ${LIBRARY}/ /app/library/
 ENV WAXAL_DOCUMENTS=/app/library
 RUN uv venv /opt/venv && . /opt/venv/bin/activate && uv pip install .
+# The agent can browse the allowed websites (WAXAL_LINK_DOMAINS) in a headless browser. It adds a Chromium (a few hundred MB) to the image:
+#   docker compose build --build-arg WITH_BROWSER=1       (not tested here: there is no Docker daemon in my environment)
+ARG WITH_BROWSER=0
+RUN if [ "$WITH_BROWSER" = "1" ]; then . /opt/venv/bin/activate && uv pip install ".[browser]" && playwright install --with-deps chromium; fi
 ENV PATH="/opt/venv/bin:$PATH" PYTHONUNBUFFERED=1
 
 VOLUME ["/app/data"]

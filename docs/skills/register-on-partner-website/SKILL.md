@@ -5,14 +5,14 @@ description: Use when the person wants to register, create an account, sign up, 
 
 # Help the person register on our partner's website (Renassur)
 
-The partner's website is https://www.renassur.sn. You cannot open it, click or type there: you guide the person by voice while they do it themselves on their phone or computer.
+The partner's website is https://www.renassur.sn. You can open it and read it with `web_open`, move through it with `web_click` (a number from the page's list), `web_page` and `web_back`, and close it with `web_close`: use that to find the right page and to read the real names of its buttons and fields. You cannot type, sign in or send a form: the person does that themselves on their phone or computer, and you guide them by voice.
 
 ## 1. Give them the way in
-- Call `share_link` with `https://www.renassur.sn` and the label `Renassur`. Tell them the link is shown with your answer, and never read the address aloud.
+- Call `share_link` with `https://www.renassur.sn` and the label `Renassur`. When you have found the exact page they need (for example the registration page), share that page's address too, with a short label. Tell them the link is shown with your answer, and never read the address aloud.
 - Ask what they want to do (create an account, ask for a quote, subscribe) if you do not know.
 
 ## 2. The steps on the website
-Use only the steps written here. Say them one or two at a time in short sentences, and ask whether they have done them before you go on.
+Use the steps written here, and what you read on the site itself; never a page, button or field that you did not see or that is not written here. Say them one or two at a time in short sentences, and ask whether they have done them before you go on.
 
 <!-- OWNER: write the real steps of the website here, in order, with the exact names of the buttons, menus and fields as they are written on the site.
      Example of the form (delete it): 1. Open the site and choose "Créer un compte". 2. Fill in your name, telephone number and e-mail. -->

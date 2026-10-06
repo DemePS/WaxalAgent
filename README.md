@@ -205,3 +205,13 @@ a skill added while the server runs is found at the next turn. Only this folder 
 speak that language (`ELEVENLABS_STT_LANGUAGE` and `ELEVENLABS_TTS_LANGUAGE` follow it unless you set them: French is `fra` for recognition and `fr` for the
 voice). The start-up line says `translation: none`. Nothing calls Claude's or Soynade's translation; the "nothing heard" message and the fixed WhatsApp
 messages are sent in French. Soynade recognises Wolof only, so use `WAXAL_STT=elevenlabs` (the default) with a language other than Wolof.
+
+## Browsing the partner's site
+
+The agent can navigate the sites of `WAXAL_LINK_DOMAINS` (`web_open`, `web_click` with a number from the page's list, `web_page`, `web_back`, `web_close`) to find the exact
+page for what the person needs, and then show its address with `share_link`. It uses CodeAgent's headless browser (`uv sync --extra browser`, then
+`playwright install chromium`; or `AGENT_BROWSER_PATH`; in Docker `--build-arg WITH_BROWSER=1`). The start-up line `Browsing: ...` says whether it is there.
+CodeAgent asks a person before it opens a new site, and nobody can answer in a voice channel, so the allowed sites are approved in advance and nothing else can be
+opened. In addition (`waxal_agent/browsing.py`): `web_open` takes only an `https` address on an allowed site; the browser never reaches a local or private
+network address; the agent cannot type, sign in or send a form (a form that sends data is always refused); a page's text is information, never instructions;
+and the browser is closed after every turn, so nothing of one person stays for the next.
