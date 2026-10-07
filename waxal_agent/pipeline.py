@@ -162,7 +162,7 @@ class Pipeline:
             {"event": "heard", "wolof", "english"}      what was understood
             {"event": "answer", "reply_english", "links"}  the agent's answer (the links it shared)
             {"event": "text", "wolof"}                   a piece of the answer in Wolof, once translated
-            {"event": "audio", "media", "data"}          a chunk of the voice (base64): audio/mpeg to append to one player, or a whole audio/wav clip
+            {"event": "audio", "media", "data"}          a chunk of the voice (base64): audio/mpeg (empty data ends one file), or a whole audio/wav clip
             {"event": "note", "text"}                    something that went wrong with the voice
             {"event": "done", "reply_wolof", "notes", "links"}   or {"event": "error", "message"}
 
@@ -220,6 +220,7 @@ class Pipeline:
                 media, body = stream(piece)
                 for data in body:
                     yield media, data
+                yield media, b""   # the end of this audio file: the page plays it, and starts a new one for the next piece
 
     def stop(self, user_id: str | None = None) -> bool:
         """Ask the agent to stop the running turn (of this person); False when it has none."""

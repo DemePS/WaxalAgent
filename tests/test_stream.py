@@ -41,9 +41,10 @@ def test_the_events_come_in_order_and_the_pieces_are_translated_and_spoken():
     events = list(pipe.stream_turn("u", understood(pipe)))
     kinds = [e["event"] for e in events]
     assert kinds[:2] == ["heard", "answer"] and kinds[-1] == "done"
-    assert kinds.count("text") == 3 and kinds.count("audio") == 6                 # three pieces, two chunks of voice each
+    assert kinds.count("text") == 3 and kinds.count("audio") == 9                 # three pieces, each: two chunks of voice and an empty one that ends the audio file
     first_text = kinds.index("text")
-    assert kinds[first_text:first_text + 3] == ["text", "audio", "audio"]          # a piece is spoken right after its text
+    assert kinds[first_text:first_text + 4] == ["text", "audio", "audio", "audio"]  # a piece is spoken right after its text
+    assert [e["data"] for e in events[first_text + 1:first_text + 4] if e["event"] == "audio"][-1] == ""      # and its file ends with an empty chunk
     assert events[0]["wolof"] == "jox ma total bi" and events[0]["english"].startswith("[en]")
     assert events[1]["reply_english"] == THREE
     assert events[-1]["reply_wolof"] == " ".join(e["wolof"] for e in events if e["event"] == "text")

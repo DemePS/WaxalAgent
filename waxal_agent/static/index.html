@@ -66,32 +66,24 @@ function working(on) { talk.disabled = on; cancelBtn.hidden = !on; }
 cancelBtn.addEventListener('click', () => { if (controller) controller.abort(); fetch('/api/stop', { method: 'POST', headers: headers() }).catch(() => {});
   statusEl.textContent = 'Stopped.'; });
 
-// The voice of a streamed turn. audio/mpeg chunks are appended to one player while they arrive (MediaSource); when the browser cannot do that,
-// or the speaker sends whole WAV clips, the clips are played one after the other.
+// The voice of a streamed turn. Each piece of the answer is its own audio file: the chunks of one piece (audio/mpeg) are gathered until the next
+// piece starts (end()), then played as one clip; whole WAV clips are played as they come. The clips play one after the other. (They are not appended
+// to one MediaSource buffer: several separate MP3 files in one buffer cannot be decoded by every browser, e.g. Firefox on Linux.)
 class Voice {
-  constructor(onReady) { this.onReady = onReady; this.el = null; this.mode = null; this.queue = []; this.finished = false; this.clips = []; this.next = 0; }
+  constructor(onReady) { this.onReady = onReady; this.el = null; this.group = []; this.media = null; this.clips = []; this.next = 0; }
   push(media, b64) {
     const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
-    if (!this.el) {
-      this.el = document.createElement('audio'); this.el.controls = true;
-      this.mode = media === 'audio/mpeg' && window.MediaSource && MediaSource.isTypeSupported('audio/mpeg') ? 'stream' : 'clips';
-      if (this.mode === 'stream') {
-        this.ms = new MediaSource(); this.el.src = URL.createObjectURL(this.ms);
-        this.ms.addEventListener('sourceopen', () => { this.buffer = this.ms.addSourceBuffer('audio/mpeg');
-          this.buffer.addEventListener('updateend', () => this.pump()); this.pump(); }, { once: true });
-      } else { this.el.addEventListener('ended', () => this.playNext()); }
-      this.onReady(this.el);
-    }
-    if (this.mode === 'stream') { this.queue.push(bytes); this.pump(); }
-    else { this.clips.push(URL.createObjectURL(new Blob([bytes], { type: media }))); if (this.next === this.clips.length - 1 && (this.el.ended || !this.el.src)) this.playNext(); }
+    if (!bytes.length) { this.flush(); return; }   // the end of one audio file
+    if (!this.el) { this.el = document.createElement('audio'); this.el.controls = true; this.el.addEventListener('ended', () => this.playNext()); this.onReady(this.el); }
+    if (media === 'audio/wav') { this.flush(); this.add(media, [bytes]); }
+    else { if (this.media && this.media !== media) this.flush(); this.media = media; this.group.push(bytes); }
   }
-  pump() {
-    if (!this.buffer || this.buffer.updating) return;
-    if (this.queue.length) { try { this.buffer.appendBuffer(this.queue.shift()); } catch { /* a closed player: nothing to feed */ } }
-    else if (this.finished && this.ms.readyState === 'open') { try { this.ms.endOfStream(); } catch { /* already closed */ } }
+  add(media, parts) {
+    this.clips.push(URL.createObjectURL(new Blob(parts, { type: media })));
+    if (this.next === this.clips.length - 1 && (this.el.ended || !this.el.src)) this.playNext();
   }
+  flush() { if (this.group.length) { this.add(this.media, this.group); this.group = []; } }  // the piece is complete
   playNext() { if (this.next < this.clips.length) { this.el.src = this.clips[this.next++]; playElement(this.el); } }
-  end() { this.finished = true; if (this.mode === 'stream') this.pump(); }
 }
 
 // A turn is streamed (/api/turn/stream, /api/text/stream): JSON lines, each shown as it arrives: what was heard, the agent's answer, each piece of the
@@ -110,11 +102,11 @@ async function send(path, body, type) {
   const handle = e => {
     if (e.event === 'heard') { line('Heard (Wolof)', e.wolof); line('Understood (English)', e.english); turns.prepend(div); statusEl.textContent = 'The agent is working…'; }
     else if (e.event === 'answer') { line('Answer (English)', e.reply_english); links(e.links); statusEl.textContent = 'Translating…'; }
-    else if (e.event === 'text') { if (wolofLine) wolofLine.textContent += ' ' + e.wolof; else wolofLine = line('Answer (Wolof)', e.wolof); }
+    else if (e.event === 'text') { if (voice) voice.flush(); if (wolofLine) wolofLine.textContent += ' ' + e.wolof; else wolofLine = line('Answer (Wolof)', e.wolof); }
     else if (e.event === 'audio') { voice = voice || new Voice(el => { div.append(el); playElement(el); }); voice.push(e.media, e.data); statusEl.textContent = ''; }
     else if (e.event === 'note') line('Note', e.text, 'note');
     else if (e.event === 'done') { if (!wolofLine && e.reply_english) line('Answer', e.reply_english);
-      (e.notes || []).filter(n => !n.startsWith('No voice')).forEach(n => line('Note', n, 'note')); if (voice) voice.end(); statusEl.textContent = ''; }
+      (e.notes || []).filter(n => !n.startsWith('No voice')).forEach(n => line('Note', n, 'note')); if (voice) voice.flush(); statusEl.textContent = ''; }
     else if (e.event === 'error') { statusEl.textContent = e.message; }
     else if (!e.event && e.wolof !== undefined) { line('Heard (Wolof)', e.wolof); turns.prepend(div); }  // /api/transcribe: one plain JSON answer
   };
@@ -126,7 +118,7 @@ async function send(path, body, type) {
       rest += decoder.decode(value, { stream: true }); const lines = rest.split('\n'); rest = lines.pop();
       lines.filter(Boolean).forEach(l => handle(JSON.parse(l))); }
     if (rest.trim()) handle(JSON.parse(rest));
-  } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = e.message; else if (voice) voice.end(); } finally { working(false); controller = null; }
+  } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = e.message; else if (voice) voice.flush(); } finally { working(false); controller = null; }
 }
 
 

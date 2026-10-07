@@ -187,7 +187,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
 
         @app.get("/")
         def index():
-            return FileResponse(STATIC / "index.html")
+            return FileResponse(STATIC / "index.html", headers={"cache-control": "no-store"})  # a changed page is loaded at once
 
 
     if bot is not None:
