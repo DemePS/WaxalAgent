@@ -138,8 +138,8 @@ def test_the_start_up_message_reports_the_real_engines(monkeypatch):
     assert describe_engines("soynade-asr") == {"stt": "soynade", "mt": "stand-in", "tts": "stand-in"}
     assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "claude", "tts": "elevenlabs"}
     monkeypatch.setenv("WAXAL_MT", "Soynade")
-    monkeypatch.setenv("WAXAL_TTS", "huggingface")
-    assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "soynade", "tts": "huggingface"}
+    monkeypatch.setenv("WAXAL_TTS", "Soynade")
+    assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "soynade", "tts": "soynade"}
 
 
 def test_a_key_in_a_dot_env_file_is_seen_before_the_engines_are_chosen(tmp_path, monkeypatch):

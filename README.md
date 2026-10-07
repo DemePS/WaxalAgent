@@ -95,8 +95,6 @@ uv run waxal-agent serve                                     # the whole turn, o
 If audio output is not offered for your key ("Only text output is supported during launch"), a reply stays text only and the
 API is not asked again for ten minutes (`SOYNADE_TTS=off` stops asking). Rate limits (HTTP 429) are waited out as the server
 says; each turn is about four calls. Everything people say, and every reply, goes to Soynade: say so in your terms.
-Other voices: `WAXAL_TTS=huggingface`
-(`HF_TOKEN`, MMS Wolof, non-commercial licence) or `WAXAL_TTS=oolel-demo` (Soynade's public demo Space, `uv sync --extra demo`).
 
 ## WhatsApp
 

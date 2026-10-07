@@ -3,7 +3,7 @@
     uv run python scripts/check_api.py listen recording.wav        # Wolof speech -> Wolof text
     uv run python scripts/check_api.py understand recording.wav    # Wolof speech -> English text (one call)
     uv run python scripts/check_api.py translate en wo "Hello"     # text translation (en wo / wo en)
-    uv run python scripts/check_api.py speak "Nanga def"           # Wolof text -> speech.wav (WAXAL_TTS=huggingface: HF_TOKEN)
+    uv run python scripts/check_api.py speak "Nanga def"           # Wolof text -> speech.wav
     uv run python scripts/check_api.py eleven-speak "Nanga def"    # ElevenLabs: Wolof text -> speech.wav (needs ELEVENLABS_API_KEY)
     uv run python scripts/check_api.py eleven-listen recording.wav # ElevenLabs: Wolof speech -> Wolof text
     uv run python scripts/check_api.py speech-test                  # why does speech fail? short/accented/long texts, one call each
@@ -82,7 +82,7 @@ def main(argv: list[str]) -> None:
         print("heard:", repr(timed(lambda: ElevenLabsListener().transcribe(wav))))
     elif command == "speak" and args:
         from waxal_agent.engines import build_speaker
-        speaker = build_speaker(client)                      # WAXAL_TTS=soynade (default) or huggingface
+        speaker = build_speaker(client)                      # WAXAL_TTS=elevenlabs (default) or soynade
         wav = timed(lambda: speaker.speak(" ".join(args)))
         Path("speech.wav").write_bytes(wav)
         print(f"{type(speaker).__name__} {speaker.model}: {len(wav)} bytes -> speech.wav (play it)")

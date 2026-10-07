@@ -34,16 +34,9 @@ def build_translator(soynade_client=None) -> Translator:
 
 
 def build_speaker(soynade_client=None) -> Speaker:
-    """WAXAL_TTS picks the voice: elevenlabs (default), soynade (their API does not offer it yet), oolel-demo (Oolel-Voices through
-    Soynade's public demo Space), or huggingface (MMS Wolof, HF_TOKEN)."""
+    """WAXAL_TTS picks the voice: elevenlabs (default) or soynade (their API does not offer it yet)."""
     import os
     choice = (os.environ.get("WAXAL_TTS") or "elevenlabs").lower()
-    if choice == "huggingface":
-        from .tts.huggingface_api import HuggingFaceSpeaker
-        return HuggingFaceSpeaker()
-    if choice in ("oolel-demo", "oolel-voices"):
-        from .tts.gradio_space import GradioSpeaker
-        return GradioSpeaker()
     if choice == "elevenlabs":
         from .tts.elevenlabs_api import ElevenLabsSpeaker
         return ElevenLabsSpeaker()
@@ -51,7 +44,7 @@ def build_speaker(soynade_client=None) -> Speaker:
         from .soynade_api import SoynadeClient
         from .tts.soynade_api import SoynadeSpeaker
         return SoynadeSpeaker(soynade_client or SoynadeClient())
-    raise SystemExit(f"Unknown WAXAL_TTS {choice!r}: use soynade, elevenlabs, huggingface or oolel-demo.")
+    raise SystemExit(f"Unknown WAXAL_TTS {choice!r}: use elevenlabs or soynade.")
 
 
 def build_listener(soynade_client=None) -> Listener:
