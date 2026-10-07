@@ -161,7 +161,7 @@ class AgentTurns:
         return (self.system_prompt + links
                 + (f"\n\nStyle guide for the Wolof you write (follow it):\n{style}" if style else ""))
 
-    def stop(self) -> bool:
+    def stop(self, user_id: str | None = None) -> bool:
         """Stop the turn that is running (it ends at the next model call and is rolled back). False when none is running."""
         if not self._running:
             return False

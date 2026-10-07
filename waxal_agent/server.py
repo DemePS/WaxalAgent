@@ -63,7 +63,8 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             if len(data) > MAX_RECORDING_BYTES:
                 raise HTTPException(413, "The recording is too long.")
             try:
-                return as_json(pipeline.from_audio(user_of(request), data, speak=request.query_params.get("speak") != "0"))
+                return as_json(await run_in_threadpool(
+                    pipeline.from_audio, user_of(request), data, request.query_params.get("speak") != "0"))
             except AudioError as e:
                 raise HTTPException(400, str(e))
             except Exception as e:  # a failing service (translation, recognition...): the page shows why, the log has the trace
@@ -114,7 +115,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             if len(data) > MAX_RECORDING_BYTES:
                 raise HTTPException(413, "The recording is too long.")
             try:
-                return {"wolof": pipeline.transcribe(data)}
+                return {"wolof": await run_in_threadpool(pipeline.transcribe, data)}
             except AudioError as e:
                 raise HTTPException(400, str(e))
             except SoynadeError as e:
@@ -125,7 +126,8 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             """Wolof typed instead of spoken (for testing without a microphone)."""
             check(request)
             try:
-                return as_json(pipeline.from_wolof(user_of(request), body.text, speak=request.query_params.get("speak") != "0"))
+                return as_json(await run_in_threadpool(
+                    pipeline.from_wolof, user_of(request), body.text, request.query_params.get("speak") != "0"))
             except Exception as e:
                 log.exception("The turn failed")
                 raise HTTPException(502, f"{type(e).__name__}: {e}"[:500])
@@ -151,7 +153,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
         def stop(request: Request):
             """Stop the agent's running turn (the page's Stop button)."""
             check(request)
-            return {"stopped": pipeline.stop()}
+            return {"stopped": pipeline.stop(user_of(request))}
 
         @app.get("/api/files")
         def list_files(request: Request):

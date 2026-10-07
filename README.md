@@ -38,6 +38,8 @@ All the documents are common to all users: they live in one library folder (`dat
 and the agent reads them, read-only, for every person. Each person's own folder (`data/users/<number>/`) only holds their
 conversation. Nobody but an administrator adds documents.
 
+**Parallel turns:** the agent keeps its session in process-wide state, so each process runs one turn at a time. `WAXAL_WORKERS` (default 4) starts that many agent processes: turns of different people run at the same time, a person's own turns stay in order, and a turn waits only when all workers are busy. `WAXAL_WORKERS=1` runs the agent inside the server process, one turn at a time. Each worker is a separate process, so it uses memory of its own.
+
 **With S3 (production):** the person in charge puts the documents in a bucket (any S3 tool or the console works), and the server mirrors them to local folders.
 - `s3://<bucket>/documents/...` is the library, the same for everybody (synced every `WAXAL_S3_INTERVAL` seconds, default 600).
 - `s3://<bucket>/users/<phone number>/documents/...` are one person's own documents. They are fetched only when that person writes (at most every
@@ -129,7 +131,7 @@ template messages can be sent: this code only ever answers messages, so it stays
 - One folder and one saved conversation per person (`data/users/<id>`).
 - Nothing is approved by voice: a request that would need approval is refused and noted.
 - Only numbers in `WAXAL_ALLOWED` are served; the webhook refuses calls without a valid signature.
-- CodeAgent keeps its state in the process, so turns run one at a time under a lock; run several processes for more.
+- CodeAgent keeps its state in the process, so one process runs one turn at a time: `WAXAL_WORKERS` (default 4) starts that many agent processes, so turns of different people run at the same time (a person's own turns stay in order). `WAXAL_WORKERS=1` runs one turn at a time in the server process.
 
 ## Tests
 

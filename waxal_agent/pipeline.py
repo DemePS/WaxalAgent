@@ -221,10 +221,10 @@ class Pipeline:
                 for data in body:
                     yield media, data
 
-    def stop(self) -> bool:
-        """Ask the agent to stop its running turn; False when it has none."""
+    def stop(self, user_id: str | None = None) -> bool:
+        """Ask the agent to stop the running turn (of this person); False when it has none."""
         stop = getattr(self.agent, "stop", None)
-        return bool(stop and stop())
+        return bool(stop and stop(user_id))
 
     def speak_text(self, wolof: str) -> tuple[bytes, list[str]]:
         """The voice of a Wolof text, on its own (after the texts were delivered): (WAV, notes; empty WAV when it failed)."""
