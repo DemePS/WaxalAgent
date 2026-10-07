@@ -218,4 +218,4 @@ page for what the person needs, and then show its address with `share_link`. It 
 CodeAgent asks a person before it opens a new site, and nobody can answer in a voice channel, so the allowed sites are approved in advance and nothing else can be
 opened. In addition (`waxal_agent/browsing.py`): `web_open` takes only an `https` address on an allowed site; the browser never reaches a local or private
 network address; the agent cannot type, sign in or send a form (a form that sends data is always refused); a page's text is information, never instructions;
-and the browser is closed after every turn, so nothing of one person stays for the next.
+the agent may open at most `WAXAL_MAX_WEB_OPEN` pages (default 3) per question; and the browser is closed after every turn, so nothing of one person stays for the next.

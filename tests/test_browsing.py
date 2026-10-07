@@ -10,6 +10,7 @@ from waxal_agent.agent import AgentTurns, TOOLS
 @pytest.fixture(autouse=True)
 def renassur(monkeypatch):
     monkeypatch.setenv("WAXAL_LINK_DOMAINS", "renassur.sn=Renassur")
+    browsing.reset()      # the web_open count of a turn starts at zero
 
 
 def test_only_an_https_address_on_an_allowed_site_is_on_an_allowed_site():
@@ -80,3 +81,41 @@ def test_the_start_up_line_says_what_can_be_browsed(monkeypatch):
     assert "Playwright is not installed" in browsing.report()
     monkeypatch.delenv("WAXAL_LINK_DOMAINS")
     assert browsing.report().startswith("Browsing: off")
+
+
+def test_a_turn_opens_at_most_three_pages_and_the_count_starts_again_after_it(monkeypatch):
+    opened = []
+    monkeypatch.setitem(TOOL_HANDLERS, "web_open", lambda url: opened.append(url) or "Page: x")
+    browsing.install()
+    for n in range(3):
+        TOOL_HANDLERS["web_open"](f"https://renassur.sn/{n}")
+    with pytest.raises(ToolError, match="already used 3 times"):
+        TOOL_HANDLERS["web_open"]("https://renassur.sn/4")
+    assert len(opened) == 3
+    browsing.reset()                                            # the end of the turn
+    TOOL_HANDLERS["web_open"]("https://renassur.sn/5")
+    assert len(opened) == 4
+    monkeypatch.setenv("WAXAL_MAX_WEB_OPEN", "1")
+    browsing.reset()
+    TOOL_HANDLERS["web_open"]("https://renassur.sn/6")
+    with pytest.raises(ToolError):
+        TOOL_HANDLERS["web_open"]("https://renassur.sn/7")
+
+
+def test_a_page_that_fills_itself_after_the_load_is_waited_for():
+    class Page:                      # the text grows once, a few polls after the load, then stays the same
+        def __init__(self): self.polls = 0
+        def evaluate(self, js):
+            self.polls += 1
+            return 25 if self.polls < 4 else 61
+        def wait_for_timeout(self, ms): pass
+
+    class Browser:
+        page = Page()
+        def ensure_page(self): return self.page
+
+    b = Browser()
+    assert browsing._wait_until_still(b) is True and b.page.polls < 25      # it saw the change, and stopped once the text was still
+    quiet = Browser()
+    quiet.page.evaluate = lambda js: 40
+    assert browsing._wait_until_still(quiet) is False
