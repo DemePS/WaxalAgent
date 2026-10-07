@@ -24,9 +24,13 @@ def run_once() -> str:
     return summary
 
 
-def start(interval: float = INTERVAL_SECONDS) -> threading.Thread | None:
-    """Clean up now, then every `interval` seconds, in a background thread. None when switched off."""
-    if (os.environ.get("WAXAL_CLEANUP") or "on").lower() in ("off", "0", "false", "no"):
+def start(interval: float = INTERVAL_SECONDS, enabled: bool | None = None) -> threading.Thread | None:
+    """Clean up now, then every `interval` seconds, in a background thread. None when switched off.
+
+    `enabled` is the setting (WAXAL_CLEANUP read by the caller); left out, WAXAL_CLEANUP is read here."""
+    if enabled is None:
+        enabled = (os.environ.get("WAXAL_CLEANUP") or "on").lower() not in ("off", "0", "false", "no")
+    if not enabled:
         log.info("Clean-up of old conversations and notes is switched off (WAXAL_CLEANUP=off).")
         return None
     stop = threading.Event()

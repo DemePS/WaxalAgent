@@ -19,6 +19,11 @@ def test_it_can_be_switched_off(monkeypatch):
     assert maintenance.start() is None
 
 
+def test_the_setting_passed_by_the_caller_wins_over_the_environment(monkeypatch):
+    monkeypatch.setattr(maintenance, "run_once", lambda: (_ for _ in ()).throw(AssertionError("must not run")))
+    assert maintenance.start(enabled=False) is None
+
+
 def test_it_deletes_what_coding_agent_says_is_old_and_keeps_the_rest(tmp_path):
     import os
 
