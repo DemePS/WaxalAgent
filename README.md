@@ -180,6 +180,12 @@ the agent and is the only part of `data/` it can open (the people's folders and 
 write their own: `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner). With Docker, `data/` is the mounted volume,
 so edit the file there.
 
+## Thinking effort (speed)
+
+`CODEAGENT_EFFORT=low|medium|high` sets how much the model thinks before it answers (`example.env` ships `medium`). Thinking stays adaptive; the effort only
+says how much. Not set, nothing is sent and the model uses its own default. A model or deployment that does not accept the level fails with its own error
+(there is no silent fallback): `uv run coding-agent --check` tries it on a step of its own. Measure the effect on your own questions before relying on it.
+
 ## Streaming a turn
 
 `POST /api/turn/stream` (the recording as the body) and `POST /api/text/stream` (`{"text": "<Wolof>"}`) answer with JSON lines, each sent as soon as it
