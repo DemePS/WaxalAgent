@@ -187,11 +187,13 @@ tool calls; CodeAgent's own `tokens:` line: model calls and tokens) and `[6] tim
 total). Only numbers are logged. `uv run python scripts/timing_table.py server.log` turns the log into one row per turn. A few turns are directional, not a
 benchmark.
 
-## Thinking effort (speed)
+## Thinking and effort (speed)
 
-`CODEAGENT_EFFORT=low|medium|high` sets how much the model thinks before it answers (`example.env` ships `medium`). Thinking stays adaptive; the effort only
-says how much. Not set, nothing is sent and the model uses its own default. A model or deployment that does not accept the level fails with its own error
-(there is no silent fallback): `uv run coding-agent --check` tries it on a step of its own. Measure the effect on your own questions before relying on it.
+CodeAgent 0.7 sends thinking **off** and effort **medium** by default (`CODEAGENT_THINKING`, `CODEAGENT_EFFORT`; `example.env` lists both). `off` is the lowest
+setting the model accepts: `disabled`, or `between_tools` on `claude-sonnet-5-5` (it rejects `disabled`; short notes can still appear between tool calls).
+The effort is `low`, `medium`, `high`, `xhigh`, `max`, or `default` (nothing is sent, so the model's own default applies). A model or deployment that does not
+accept a setting fails with its own error (there is no silent fallback): `uv run coding-agent --check` tries both on a step of its own. The default model is
+`claude-sonnet-5` (`ANTHROPIC_MODEL` changes it). Measure the effect on your own questions before relying on it.
 
 ## Streaming a turn
 
