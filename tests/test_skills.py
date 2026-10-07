@@ -67,5 +67,14 @@ def test_the_start_up_line_says_which_skills_were_found_or_why_none(tmp_path):
     assert skills_report(None).startswith("Skills: off")
 
 
+def test_the_start_up_line_works_with_the_folder_as_typed_and_no_agent_in_this_process(tmp_path, monkeypatch):
+    from waxal_agent import agent
+    monkeypatch.setattr(agent, "_SKILLS_ROOT", None)                              # the agent pool: the workers have the agent, not the server
+    (tmp_path / "skills" / "greet").mkdir(parents=True)
+    (tmp_path / "skills" / "greet" / "SKILL.md").write_text("---\ndescription: Use to greet.\n---\nhi")
+    report = agent.skills_report(str(tmp_path / "skills"))                       # the pool keeps the folder as a string
+    assert "1 in" in report and "greet" in report
+
+
 def test_the_prompt_tells_the_agent_to_load_a_matching_skill_first(tmp_path):
     assert "first action is to call load_skill" in AgentTurns(tmp_path / "users", skills=tmp_path / "skills").system_prompt
