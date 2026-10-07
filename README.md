@@ -180,6 +180,13 @@ the agent and is the only part of `data/` it can open (the people's folders and 
 write their own: `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner). With Docker, `data/` is the mounted volume,
 so edit the file there.
 
+## Where the time of a turn goes
+
+The server logs, for every turn, the stages that make it slow (`WAXAL_LOG=INFO`, the default): the agent (`agent timing:` lines: time before its first output,
+tool calls; CodeAgent's own `tokens:` line: model calls and tokens) and `[6] timing:` (agent, translation, voice, time to the first text and the first voice,
+total). Only numbers are logged. `uv run python scripts/timing_table.py server.log` turns the log into one row per turn. A few turns are directional, not a
+benchmark.
+
 ## Thinking effort (speed)
 
 `CODEAGENT_EFFORT=low|medium|high` sets how much the model thinks before it answers (`example.env` ships `medium`). Thinking stays adaptive; the effort only

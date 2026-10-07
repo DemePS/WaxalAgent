@@ -1,6 +1,7 @@
 """The agent's UI for a voice channel: it only collects what Claude says, in writing."""
 
 import logging
+import time
 
 from coding_agent.ui import UI
 
@@ -26,6 +27,19 @@ class VoiceUI(UI):
         self._chunks: list[str] = []
         self._kept: list[str] = []      # answers written before a link was shared: they are part of the answer
         self._links_here = False        # this response calls share_link
+        self._started = time.monotonic()  # the turn's clock, for the timing line
+        self._first_output: float | None = None  # when the agent first thought, wrote or called a tool
+        self.tool_calls = 0
+
+    def _first(self) -> None:
+        if self._first_output is None:
+            self._first_output = time.monotonic() - self._started
+
+    def log_timing(self) -> None:
+        """One line for the measure of a turn: how long before the agent's first output (the set-up of the session, the request to Claude
+        and its first reply), and how many tools it called. The number of model calls and the tokens are in CodeAgent's own `tokens:` line."""
+        first = "never" if self._first_output is None else f"{self._first_output:.1f} s"
+        log.info("   agent timing: first output after %s, %d tool call(s), %.1f s in all", first, self.tool_calls, time.monotonic() - self._started)
 
     def share(self, link: dict) -> str:
         """The share_link tool: the link is shown to the person with the answer (not spoken). Once per address."""
@@ -37,6 +51,7 @@ class VoiceUI(UI):
 
     # what the agent says
     def assistant_start(self) -> None:
+        self._first()
         self._chunks = []
         self._links_here = False
 
@@ -55,9 +70,12 @@ class VoiceUI(UI):
         self._chunks = []
 
     def thinking(self) -> None:
+        self._first()
         log.info("   the agent is thinking...")
 
     def tool_start(self, name: str) -> None:
+        self._first()
+        self.tool_calls += 1
         log.info("   tool: %s", name)
         if name == "share_link":
             self._links_here = True

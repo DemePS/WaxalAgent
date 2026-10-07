@@ -215,3 +215,18 @@ def test_an_answer_that_shares_a_link_and_ends_the_turn_is_spoken_whole():
     run_responses(ui, [("Je cherche.", ["read_pdf"]), ("Voici ma réponse, et le lien.", ["share_link"])])
     assert ui.reply == "Voici ma réponse, et le lien."
     assert "write it now, in full" in ui.share({"url": "https://renassur.sn/", "label": "Renassur"})
+
+
+def test_the_agent_timing_line_counts_the_tool_calls_and_the_first_output(caplog):
+    import logging
+    from waxal_agent.voice_ui import VoiceUI
+    caplog.set_level(logging.INFO, logger="waxal.agent")
+    ui = VoiceUI()
+    ui.log_timing()
+    assert "first output after never, 0 tool call(s)" in caplog.text
+    ui.thinking()
+    ui.tool_start("read_file")
+    ui.tool_start("grep")
+    caplog.clear()
+    ui.log_timing()
+    assert "first output after 0." in caplog.text and "2 tool call(s)" in caplog.text

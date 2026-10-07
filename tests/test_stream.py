@@ -146,3 +146,52 @@ def test_the_stream_routes_refuse_what_the_others_refuse():
     assert secret.post("/api/text/stream", json={"text": "x"}).status_code == 403
     assert secret.post("/api/turn/stream", content=b"x").status_code == 403
     assert TestClient(create_app(make())).post("/api/turn/stream", content=b"").status_code == 400
+
+
+def test_a_streamed_turn_logs_where_the_time_went(caplog):
+    caplog.set_level("INFO", logger="waxal.turn")
+    pipe = make()
+    list(pipe.stream_turn("+221770000000", understood(pipe)))
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("[6] timing:")]
+    assert len(lines) == 1
+    line = lines[0]
+    for part in ("agent ", "translation ", "voice ", "first text at ", "first voice at ", " s in all"):
+        assert part in line
+    assert "first text at -" not in line and "first voice at -" not in line  # a voice was spoken: both firsts were measured
+    assert "221770000000" not in " ".join(r.getMessage() for r in caplog.records)  # never the user's id or number
+
+
+def test_the_timing_line_says_a_dash_for_a_voice_that_failed(caplog):
+    class Failing(FakeSpeaker):
+        def speak(self, text):
+            raise SpeechUnavailable("no voice today")
+
+    caplog.set_level("INFO", logger="waxal.turn")
+    pipe = make(speaker=Failing())
+    list(pipe.stream_turn("u", understood(pipe)))
+    line = next(r.getMessage() for r in caplog.records if r.getMessage().startswith("[6] timing:"))
+    assert "first text at " in line and "first voice at -" in line  # the texts were delivered, no voice was ever made
+
+
+def test_a_turn_answered_in_one_piece_logs_its_timing_too(caplog):
+    caplog.set_level("INFO", logger="waxal.turn")
+    pipe = make()
+    pipe.from_wolof("u", "jox ma total bi")
+    lines = [r.getMessage() for r in caplog.records if r.getMessage().startswith("[6] timing:")]
+    assert len(lines) == 1 and "agent " in lines[0] and "voice " in lines[0]
+
+
+def test_the_voice_time_counts_what_the_speaker_takes_not_what_the_caller_keeps():
+    import time
+    from waxal_agent.pipeline import _timed
+
+    def slow():
+        time.sleep(0.05)
+        yield 1
+        time.sleep(0.05)
+        yield 2
+
+    spent = {}
+    for _ in _timed(slow(), spent, "voice"):
+        time.sleep(0.2)  # a slow connection: it must not count
+    assert 0.09 <= spent["voice"] < 0.2

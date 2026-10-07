@@ -47,6 +47,35 @@ class TurnResult:
     links: list[dict] = field(default_factory=list)  # [{"url", "label"}] the agent shared: shown and sent as text, never spoken
 
 
+
+def _timed(items, spent: dict, key: str):
+    """The items of an iterator, as they come. What is added to spent[key] is the time spent making them, not the time the caller keeps them
+    (a slow connection that takes its time to receive a chunk is not the speech service's time)."""
+    iterator = iter(items)
+    while True:
+        started = time.monotonic()
+        try:
+            item = next(iterator)
+        except StopIteration:
+            return
+        finally:
+            spent[key] = spent.get(key, 0.0) + time.monotonic() - started
+        yield item
+
+
+def _log_timing(spent: dict, first: dict, since: float) -> None:
+    """The measure of one turn, from the moment the question was understood: where the time went. 'translation' is the time the turn waited for
+    it (the pieces are translated while the first one is spoken). Numbers only: no text, no user, no key."""
+    def seconds(key: str) -> str:
+        return f"{spent[key]:.1f} s" if key in spent else "-"
+
+    def at(key: str) -> str:
+        return f"{first[key]:.1f} s" if key in first else "-"
+
+    log.info("[6] timing: agent %s, translation %s, voice %s | first text at %s, first voice at %s | %.1f s in all",
+             seconds("agent"), seconds("translation"), seconds("voice"), at("text"), at("voice"), time.monotonic() - since)
+
+
 class Pipeline:
     def __init__(self, listener: Listener, translator: Translator, speaker: Speaker, agent: Agent) -> None:
         self.listener, self.translator, self.speaker, self.agent = listener, translator, speaker, agent
@@ -88,8 +117,10 @@ class Pipeline:
         result = TurnResult(wolof=wolof.strip())
         log.info("[1] Wolof: %s", result.wolof)
         if result.wolof and _translating():  # without translation the agent gets what was recognised itself
+            started = time.monotonic()
             result.english = " ".join(self.translator.translate(s, "wo", "en") for s in chunks(result.wolof))
             log.info("[2] Wolof -> English: %s", result.english)
+            log.info("[2] translation took %.1f s", time.monotonic() - started)
         return result
 
     def _ask(self, user_id: str, question: str):
@@ -143,17 +174,24 @@ class Pipeline:
         if not (result.english if _translating() else result.wolof):
             self._nothing_heard(result, speak)
             return result
+        turn = time.monotonic()
+        spent: dict[str, float] = {}
         spoken = self._ask_agent(user_id, result)
+        spent["agent"] = time.monotonic() - turn
         if not spoken:
             return result
+        started = time.monotonic()
         with ThreadPoolExecutor(TRANSLATION_WORKERS) as pool:  # the pieces are translated at the same time
             parts = [f.result() for f in self._translate_pieces(list(chunks(spoken)), pool)]
+        spent["translation"] = time.monotonic() - started
         result.reply_wolof = " ".join(parts)
         log.info("[4] reply -> Wolof: %s", result.reply_wolof)
         if speak:
             started = time.monotonic()
             result.audio_wav = self._speak(parts, result)
-            log.info("[5] spoken (%.1f s): %d bytes of audio", time.monotonic() - started, len(result.audio_wav))
+            spent["voice"] = time.monotonic() - started
+            log.info("[5] spoken (%.1f s): %d bytes of audio", spent["voice"], len(result.audio_wav))
+        _log_timing(spent, {}, turn)
         return result
 
     def stream_turn(self, user_id: str, result: TurnResult):
@@ -169,6 +207,9 @@ class Pipeline:
         The answer is split into small pieces, all translated at the same time; the first piece is spoken as soon as it is translated, while
         the others still are. The voice of each piece is streamed as it is made."""
         yield {"event": "heard", "wolof": result.wolof, "english": result.english}
+        turn = time.monotonic()  # for the measure of the turn: [6] timing
+        spent: dict[str, float] = {}
+        first: dict[str, float] = {}
         pool = ThreadPoolExecutor(TRANSLATION_WORKERS)
         try:
             if not (result.english if _translating() else result.wolof):
@@ -184,16 +225,21 @@ class Pipeline:
                        "notes": result.notes, "links": []}
                 return
             spoken = self._ask_agent(user_id, result)
+            spent["agent"] = time.monotonic() - turn
             yield {"event": "answer", "reply_english": result.reply_english, "links": result.links}
             texts: list[str] = []
             voice = bool(spoken)
             for future in self._translate_pieces(list(chunks(spoken, STREAM_PIECE)), pool):
+                waited = time.monotonic()
                 text = future.result()
+                spent["translation"] = spent.get("translation", 0.0) + time.monotonic() - waited
+                first.setdefault("text", time.monotonic() - turn)
                 texts.append(text)
                 yield {"event": "text", "wolof": text}
                 if voice:
                     try:
-                        for media, data in self._voice(text):
+                        for media, data in _timed(self._voice(text), spent, "voice"):
+                            first.setdefault("voice", time.monotonic() - turn)
                             yield {"event": "audio", "media": media, "data": base64.b64encode(data).decode("ascii")}
                     except (SpeechUnavailable, SoynadeError) as e:
                         log.warning("[5] speech failed: %s", e)
@@ -202,6 +248,7 @@ class Pipeline:
                         voice = False  # the texts are still delivered
             result.reply_wolof = " ".join(texts)
             log.info("[4] reply -> Wolof: %s", result.reply_wolof)
+            _log_timing(spent, first, turn)
             yield {"event": "done", "reply_english": result.reply_english, "reply_wolof": result.reply_wolof,
                    "notes": result.notes, "links": result.links}
         except Exception as e:  # the turn failed: the page is told, the stream ends

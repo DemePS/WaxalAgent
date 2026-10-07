@@ -208,6 +208,7 @@ class AgentTurns:
                 self._running = False
                 session.close()
                 browsing.reset()  # nothing of this person stays in the browser
+        ui.log_timing()
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:
             notes.append(failure)
