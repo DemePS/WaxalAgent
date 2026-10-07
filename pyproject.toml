@@ -1,12 +1,12 @@
 [project]
 name = "waxal-agent"
-version = "0.1.0"
+version = "0.2.0"
 description = "A Wolof voice agent: Wolof speech in, an English agent (CodeAgent), Wolof speech out. A test page and WhatsApp."
 readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # The agent engine, pinned to a commit of main (0.6.0 code; move to a tag once one exists).
-    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@6ff4ed352044717734ed5304fb42491d62d785e5",
+    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@048c867a7b6445742f452e929b6ea2631ad9f2cf",
     "python-dotenv>=1.0",   # a .env file is read before the engines are chosen
     "fonttools>=4.40",   # pypdf needs it to read the encoding of CFF fonts (else it warns on every page)
     "fastapi>=0.110",

@@ -109,8 +109,8 @@ name = "azure-identity-broker"
 version = "1.3.0"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "azure-identity" },
-    { name = "msal", extra = ["broker"] },
+    { name = "azure-identity", marker = "sys_platform == 'win32'" },
+    { name = "msal", extra = ["broker"], marker = "sys_platform == 'win32'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/01/ca/a8eb8571f71f244a07debc77f335deadee6ecb17be5743479f878a68eaa4/azure_identity_broker-1.3.0.tar.gz", hash = "sha256:1f40ea42d31da86669fe4cd4f93e4cdf91b9b1cffca1fba39cf5ba0f7df1bd27", size = 15612, upload-time = "2025-08-07T22:27:48.032Z" }
 wheels = [
@@ -439,7 +439,7 @@ wheels = [
 [[package]]
 name = "codeagent"
 version = "0.6.3"
-source = { git = "https://github.com/DemePS/CodeAgent.git?rev=6ff4ed352044717734ed5304fb42491d62d785e5#6ff4ed352044717734ed5304fb42491d62d785e5" }
+source = { git = "https://github.com/DemePS/CodeAgent.git?rev=048c867a7b6445742f452e929b6ea2631ad9f2cf#048c867a7b6445742f452e929b6ea2631ad9f2cf" }
 dependencies = [
     { name = "anthropic" },
     { name = "azure-identity" },
@@ -562,7 +562,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions" },
+    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -1207,7 +1207,7 @@ wheels = [
 
 [package.optional-dependencies]
 broker = [
-    { name = "pymsalruntime" },
+    { name = "pymsalruntime", marker = "sys_platform == 'win32'" },
 ]
 
 [[package]]
@@ -1787,7 +1787,7 @@ wheels = [
 
 [[package]]
 name = "waxal-agent"
-version = "0.1.0"
+version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
@@ -1814,7 +1814,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.34" },
-    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=6ff4ed352044717734ed5304fb42491d62d785e5" },
+    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=048c867a7b6445742f452e929b6ea2631ad9f2cf" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "fonttools", specifier = ">=4.40" },
     { name = "httpx", specifier = ">=0.27" },
