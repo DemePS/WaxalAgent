@@ -21,6 +21,8 @@ log = logging.getLogger("waxal.pool")
 def _worker(data, documents, tasks, control, results, instructions=None, skills=None) -> None:
     """The child process: one AgentTurns, one turn at a time; a message on `control` stops the running turn."""
     from .agent import AgentTurns
+    from .cli import setup_logging
+    setup_logging()  # a spawned process has no logging set up: without this the agent's "tool: ..." lines are lost
     turns = AgentTurns(data, documents=documents, instructions=instructions, skills=skills)
 
     def watch() -> None:

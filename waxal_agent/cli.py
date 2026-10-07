@@ -27,6 +27,14 @@ def quiet_loggers() -> None:
     logging.getLogger("pypdf").setLevel(logging.ERROR)
 
 
+def setup_logging() -> None:
+    """The log format and level (WAXAL_LOG). The agent's worker processes start from scratch and call it too, or their lines are lost."""
+    import logging
+    logging.basicConfig(level=os.environ.get("WAXAL_LOG", "INFO").upper(), format="%(asctime)s %(levelname)s %(message)s",
+                        datefmt="%H:%M:%S")
+    quiet_loggers()
+
+
 def load_env() -> None:
     """The settings of a .env file, before anything reads os.environ (the engines, the documents folder...): the first .env found from
     the folder you run in upwards, then ~/.coding-agent/.env, as CodeAgent does. A variable already set in the environment wins."""
@@ -54,13 +62,9 @@ def main() -> None:
                        help="The folder of the agent's skills (one folder with a SKILL.md each), the same for every person. WAXAL_SKILLS_DIR.")
     serve.add_argument("--data", default="data/users", help="Where each person's folder and conversation are kept.")
     args = parser.parse_args()
-    import logging
-
     import uvicorn
 
-    logging.basicConfig(level=os.environ.get("WAXAL_LOG", "INFO").upper(), format="%(asctime)s %(levelname)s %(message)s",
-                        datefmt="%H:%M:%S")
-    quiet_loggers()
+    setup_logging()
     from . import certs
     from . import maintenance
     maintenance.start()  # old conversations and notes: once now, then daily
