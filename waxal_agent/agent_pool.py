@@ -15,15 +15,18 @@ import queue
 import threading
 from concurrent.futures import Future
 
+from .language import Language
+
 log = logging.getLogger("waxal.pool")
 
 
-def _worker(data, documents, tasks, control, results, instructions=None, skills=None) -> None:
+def _worker(data, documents, tasks, control, results, instructions=None, skills=None, language: Language = Language(),
+           log_level: str = "WARNING") -> None:
     """The child process: one AgentTurns, one turn at a time; a message on `control` stops the running turn."""
     from .agent import AgentTurns
-    from .cli import setup_logging
-    setup_logging()  # a spawned process has no logging set up: without this the agent's "tool: ..." lines are lost
-    turns = AgentTurns(data, documents=documents, instructions=instructions, skills=skills)
+    from .logs import setup_logging
+    setup_logging(log_level)  # a spawned process has no logging set up: without this the agent's "tool: ..." lines are lost
+    turns = AgentTurns(data, documents=documents, instructions=instructions, skills=skills, language=language)
 
     def watch() -> None:
         while control.get() is not None:
@@ -38,9 +41,11 @@ def _worker(data, documents, tasks, control, results, instructions=None, skills=
 
 
 class AgentPool:
-    def __init__(self, workers: int, data, documents=None, refresh=None, target=_worker, instructions=None, skills=None) -> None:
+    def __init__(self, workers: int, data, documents=None, refresh=None, target=_worker, instructions=None, skills=None,
+                 language: Language = Language(), log_level: str = "WARNING") -> None:
         self.target = target  # the child's function (tests bring a stand-in)
         self.instructions, self.skills = instructions, skills
+        self.language, self.log_level = language, log_level
         self.size, self.data, self.documents, self.refresh = max(1, workers), data, documents, refresh
         self._ctx = multiprocessing.get_context("spawn")  # CodeAgent's state and our threads: never fork
         self._cond = threading.Condition()
@@ -58,7 +63,8 @@ class AgentPool:
     def _spawn(self) -> dict:
         tasks, control = self._ctx.Queue(), self._ctx.Queue()
         process = self._ctx.Process(target=self.target, args=(self.data, self.documents, tasks, control, self._results),
-                                   kwargs={"instructions": self.instructions, "skills": self.skills}, daemon=True)
+                                   kwargs={"instructions": self.instructions, "skills": self.skills,
+                                           "language": self.language, "log_level": self.log_level}, daemon=True)
         process.start()
         return {"process": process, "tasks": tasks, "control": control, "user": None}
 

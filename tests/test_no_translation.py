@@ -102,14 +102,15 @@ def test_whatsapp_fixed_messages_are_french_and_not_translated(french, monkeypat
 
 def test_the_start_up_line_says_there_is_no_translation():
     from waxal_agent.engines import describe_engines
+    from waxal_agent.settings import Settings
     import os
     old = {k: os.environ.get(k) for k in ("WAXAL_TRANSLATION", "WAXAL_REPLY_LANGUAGE")}
     try:
         os.environ["WAXAL_TRANSLATION"] = "off"
-        assert describe_engines("hosted")["mt"] == "none"
+        assert describe_engines("hosted", Settings.from_env())["mt"] == "none"
         os.environ["WAXAL_TRANSLATION"] = "on"
         os.environ["WAXAL_REPLY_LANGUAGE"] = "en"
-        assert describe_engines("hosted")["mt"] == "claude"
+        assert describe_engines("hosted", Settings.from_env())["mt"] == "claude"
     finally:
         for k, v in old.items():
             os.environ.pop(k, None) if v is None else os.environ.__setitem__(k, v)

@@ -3,7 +3,10 @@
 from coding_agent import session, state
 
 from waxal_agent import agent as module
-from waxal_agent.agent import CONCISE, AgentTurns, TOOLS, user_folder
+from waxal_agent.agent import AgentTurns, TOOLS, build_system_prompt, concise_notice, user_folder
+from waxal_agent.language import Language
+
+CONCISE = concise_notice(Language())
 
 
 def fake_send(reply):
@@ -163,25 +166,41 @@ def test_the_prompt_says_what_really_happens_to_the_text():
         assert spoken in out and out.strip().endswith(machine), out
 
 
-def test_the_instructions_are_a_separate_read_only_folder_the_agent_discovers_itself(tmp_path, monkeypatch):
+def test_the_instructions_are_appended_to_the_system_prompt_and_win(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
     monkeypatch.setattr(session, "send", fake_send("ok"))
     (tmp_path / "instructions").mkdir()
     (tmp_path / "instructions" / "INSTRUCTIONS.md").write_text("Be kind.")
     turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library", instructions=tmp_path / "instructions")
-    prompt = turns.system_prompt
-    assert "INSTRUCTIONS.md" in prompt and "read_file" in prompt and "{instructions" not in prompt and "{documents}" not in prompt
+    prompt = turns.prompt_for_turn()
+    assert "Be kind." in prompt and "{instructions" not in prompt and "{documents}" not in prompt
     assert "follow whatever they say" in prompt and "they win" in prompt                    # the owner's instructions beat the other rules
-    assert "unless your own instructions" in CONCISE
-    assert (tmp_path / "instructions").resolve().as_posix() in prompt and (tmp_path / "library").resolve().as_posix() in prompt
+    assert "read_file" in prompt                                                            # still a tool for the library...
+    assert "list the instructions folder" not in prompt.lower()                             # ...but the agent is not sent to find the file
+    assert "appended to your system prompt" in CONCISE
     turns.ask("u", "hello")
     roots = {r.resolve() for r in state.read_roots}
-    assert roots == {(tmp_path / "library").resolve(), (tmp_path / "instructions").resolve()}   # two folders, and never data/ itself
-    assert "read_file" in module.TOOLS
+    assert roots == {(tmp_path / "library").resolve()}   # the agent does not need to open the instructions, and never data/ itself
 
 
-def test_without_an_instructions_folder_the_prompt_does_not_mention_one(tmp_path):
-    assert "INSTRUCTIONS.md" not in AgentTurns(tmp_path / "users", documents=tmp_path / "library").system_prompt
+def test_the_instructions_files_are_read_again_at_every_turn_main_file_first(tmp_path):
+    folder = tmp_path / "instructions"
+    folder.mkdir()
+    (folder / "a-extra.txt").write_text("Extra rule.")
+    (folder / "INSTRUCTIONS.md").write_text("Main rule.")
+    (folder / "image.png").write_bytes(b"\x89PNG")
+    turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library", instructions=folder)
+    prompt = turns.prompt_for_turn()
+    assert prompt.index("Main rule.") < prompt.index("Extra rule.") and "image.png" not in prompt
+    (folder / "INSTRUCTIONS.md").write_text("Changed rule.")
+    assert "Changed rule." in turns.prompt_for_turn() and "Main rule." not in turns.prompt_for_turn()
+
+
+def test_without_instructions_the_prompt_has_no_instructions_section(tmp_path):
+    assert "Instructions from the owner" not in AgentTurns(tmp_path / "users", documents=tmp_path / "library").prompt_for_turn()
+    empty = tmp_path / "instructions"
+    empty.mkdir()
+    assert "Instructions from the owner" not in AgentTurns(tmp_path / "users", instructions=empty).prompt_for_turn()
 
 
 def run_responses(ui, responses):

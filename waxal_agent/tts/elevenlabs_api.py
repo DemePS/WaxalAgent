@@ -14,19 +14,20 @@ import os
 import wave
 
 from ..elevenlabs_api import ElevenLabsClient
-from ..language import REPLY_LANGUAGE, TTS_CODES, translating
+from ..language import Language
 
 DEFAULT_VOICE = "JBFqnCBsd6RMkjVDRZzb"  # "George", the voice of ElevenLabs' own example
 
 
 class ElevenLabsSpeaker:
-    def __init__(self, client: ElevenLabsClient | None = None) -> None:
+    def __init__(self, client: ElevenLabsClient | None = None, language: Language | None = None) -> None:
         self.client = client or ElevenLabsClient()
+        language = language or Language.from_env()
         env = os.environ
         self.voice = env.get("ELEVENLABS_VOICE_ID") or DEFAULT_VOICE
         self.model = env.get("ELEVENLABS_TTS_MODEL") or "eleven_v4"
         # no Wolof in eleven_v4: French reads Wolof spelling best. With WAXAL_TRANSLATION=off, the language that is spoken.
-        self.language = env.get("ELEVENLABS_TTS_LANGUAGE", "fr" if translating() else TTS_CODES.get(REPLY_LANGUAGE, "fr"))
+        self.language = env.get("ELEVENLABS_TTS_LANGUAGE", language.tts_code)
         self.format = env.get("ELEVENLABS_TTS_FORMAT") or "pcm_16000"
         self.stream_format = env.get("ELEVENLABS_STREAM_FORMAT") or "mp3_44100_64"  # what speak_stream sends: playable as it arrives
 

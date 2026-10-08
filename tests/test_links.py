@@ -66,7 +66,7 @@ def test_the_pipeline_returns_the_links_of_the_turn_and_not_the_ones_of_another_
 
 
 def test_the_links_are_in_the_json_and_under_the_text_on_whatsapp():
-    from waxal_agent.server import as_json
+    from waxal_server.app import as_json
     from waxal_agent.pipeline import TurnResult
     links = [{"url": "https://renassur.sn/", "label": "Renassur"}]
     assert as_json(TurnResult(links=links))["links"] == links
@@ -75,7 +75,7 @@ def test_the_links_are_in_the_json_and_under_the_text_on_whatsapp():
 
 def test_the_page_shows_the_links_as_safe_anchors():
     from fastapi.testclient import TestClient
-    from waxal_agent.server import create_app
+    from waxal_server.app import create_app
     page = TestClient(create_app(Pipeline(FakeListener(), FakeTranslator(), FakeSpeaker(), StubAgent()))).get("/").text
     assert "links(e.links)" in page and "noopener noreferrer" in page and "textContent = k.label" in page    # text, never innerHTML
 

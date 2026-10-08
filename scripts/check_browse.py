@@ -10,7 +10,7 @@ import logging
 import sys
 from urllib.parse import urlsplit
 
-from waxal_agent.cli import load_env
+from waxal_agent.env import load_env
 
 load_env()
 

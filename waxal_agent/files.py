@@ -25,9 +25,10 @@ def safe_name(name: str) -> str:
 
 
 class Library:
-    def __init__(self, folder: Path | str = "data/documents") -> None:
+    def __init__(self, folder: Path | str = "data/documents", max_bytes: int = MAX_BYTES) -> None:
         self.folder = Path(folder).resolve()
         self.folder.mkdir(parents=True, exist_ok=True)
+        self.max_bytes = max_bytes
 
     def list(self) -> list[dict]:
         files = [p for p in self.folder.iterdir() if p.is_file() and not p.name.startswith(".")]
@@ -37,8 +38,8 @@ class Library:
         name = safe_name(name)
         if not data:
             raise FileRefused("The file is empty.")
-        if len(data) > MAX_BYTES:
-            raise FileRefused(f"The file is too big (at most {MAX_BYTES // (1024 * 1024)} MB).")
+        if len(data) > self.max_bytes:
+            raise FileRefused(f"The file is too big (at most {self.max_bytes // (1024 * 1024)} MB).")
         if len(self.list()) >= MAX_FILES:
             raise FileRefused("Too many files: delete some first.")
         target, stem, suffix, n = self.folder / name, Path(name).stem, Path(name).suffix, 1

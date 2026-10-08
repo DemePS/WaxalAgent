@@ -132,18 +132,20 @@ def test_texts_can_be_delivered_before_the_voice():
 
 def test_the_start_up_message_reports_the_real_engines(monkeypatch):
     from waxal_agent.engines import describe_engines
-    for name in ("WAXAL_STT", "WAXAL_MT", "WAXAL_TTS"):
+    from waxal_agent.settings import Settings
+    for name in ("WAXAL_STT", "WAXAL_MT", "WAXAL_TTS", "WAXAL_TRANSLATION", "WAXAL_REPLY_LANGUAGE"):
         monkeypatch.delenv(name, raising=False)
+    monkeypatch.setenv("WAXAL_REPLY_LANGUAGE", "en")
     assert describe_engines("fake") == {"stt": "stand-in", "mt": "stand-in", "tts": "stand-in"}
     assert describe_engines("soynade-asr") == {"stt": "soynade", "mt": "stand-in", "tts": "stand-in"}
-    assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "claude", "tts": "elevenlabs"}
+    assert describe_engines("hosted", Settings.from_env()) == {"stt": "elevenlabs", "mt": "claude", "tts": "elevenlabs"}
     monkeypatch.setenv("WAXAL_MT", "Soynade")
     monkeypatch.setenv("WAXAL_TTS", "Soynade")
-    assert describe_engines("hosted") == {"stt": "elevenlabs", "mt": "soynade", "tts": "soynade"}
+    assert describe_engines("hosted", Settings.from_env()) == {"stt": "elevenlabs", "mt": "soynade", "tts": "soynade"}
 
 
 def test_a_key_in_a_dot_env_file_is_seen_before_the_engines_are_chosen(tmp_path, monkeypatch):
-    from waxal_agent.cli import load_env
+    from waxal_agent.env import load_env
     (tmp_path / ".env").write_text("ELEVENLABS_API_KEY=from-the-file\nWAXAL_TEST_SET=file\n")
     monkeypatch.chdir(tmp_path)
     monkeypatch.setenv("HOME", str(tmp_path / "home"))
@@ -157,7 +159,7 @@ def test_a_key_in_a_dot_env_file_is_seen_before_the_engines_are_chosen(tmp_path,
 
 def test_the_pdf_library_does_not_flood_the_terminal_with_font_warnings():
     import logging
-    from waxal_agent.cli import quiet_loggers
+    from waxal_agent.logs import quiet_loggers
     quiet_loggers()
     for name in ("pypdf", "pypdf._cmap", "httpx", "azure.identity"):
         assert logging.getLogger(name).getEffectiveLevel() >= logging.WARNING, name

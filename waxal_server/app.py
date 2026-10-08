@@ -4,7 +4,6 @@ import base64
 import hmac
 import json
 import logging
-import os
 from pathlib import Path
 
 from fastapi import BackgroundTasks, FastAPI, HTTPException, Request
@@ -12,11 +11,11 @@ from fastapi.concurrency import run_in_threadpool
 from fastapi.responses import FileResponse, PlainTextResponse, StreamingResponse
 from pydantic import BaseModel
 
-from .audio import AudioError
-from .files import MAX_BYTES, FileRefused, Library
-from .pipeline import Pipeline, TurnResult
-from .soynade_api import SoynadeError
-from .whatsapp import WhatsAppBot, signature_ok
+from waxal_agent.audio import AudioError
+from waxal_agent.files import FileRefused, Library
+from waxal_agent.pipeline import Pipeline, TurnResult
+from waxal_agent.soynade_api import SoynadeError
+from waxal_agent.whatsapp import WhatsAppBot, signature_ok
 
 log = logging.getLogger("waxal.server")
 
@@ -35,10 +34,15 @@ def as_json(result: TurnResult) -> dict:
 
 
 def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | None = None,
-               test_page: bool = True, files: Library | None = None) -> FastAPI:
+               test_page: bool = True, files: Library | None = None, static_dir: str | Path | None = None,
+               title: str = "WaxalAgent") -> FastAPI:
     """`token`: when set (WAXAL_TOKEN), every /api call must send it in the X-Token header.
-    `test_page`: False leaves only the WhatsApp webhook (a public server must not offer the test page)."""
-    app = FastAPI(title="WaxalAgent", docs_url=None, redoc_url=None, openapi_url=None)
+    `test_page`: False leaves only the WhatsApp webhook (a public server must not offer the test page).
+    `static_dir`: a folder with an index.html that replaces the default page (an app's own look and texts)."""
+    page = Path(static_dir) / "index.html" if static_dir else STATIC / "index.html"
+    if test_page and not page.is_file():
+        raise FileNotFoundError(f"The test page is missing: {page}")
+    app = FastAPI(title=title, docs_url=None, redoc_url=None, openapi_url=None)
 
     def check(request: Request) -> None:
         if token and not hmac.compare_digest(request.headers.get("x-token", ""), token):
@@ -51,7 +55,8 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
         @app.get("/api/health")
         def health(request: Request):
             check(request)
-            return {"ok": True}
+            # what the page needs to lay itself out: with no translation there is no Wolof/English pair to show
+            return {"ok": True, "translating": pipeline.language.translating, "language": pipeline.language.reply_language}
 
         @app.post("/api/turn")
         async def turn(request: Request):
@@ -167,7 +172,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
             if files is None:
                 raise HTTPException(404, "Uploads are not enabled.")
             data = await request.body()
-            if len(data) > MAX_BYTES:
+            if len(data) > files.max_bytes:
                 raise HTTPException(413, "The file is too big.")
             try:
                 return {"name": files.save(name, data), "files": files.list()}
@@ -187,7 +192,7 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
 
         @app.get("/")
         def index():
-            return FileResponse(STATIC / "index.html", headers={"cache-control": "no-store"})  # a changed page is loaded at once
+            return FileResponse(page, headers={"cache-control": "no-store"})  # a changed page is loaded at once
 
 
     if bot is not None:
@@ -216,7 +221,3 @@ def create_app(pipeline: Pipeline, token: str | None = None, bot: WhatsAppBot | 
         add_test_routes()
 
     return app
-
-
-def token_from_env() -> str | None:
-    return os.environ.get("WAXAL_TOKEN") or None

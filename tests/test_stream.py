@@ -9,7 +9,7 @@ from tests.test_pipeline import StubAgent
 from waxal_agent import pipeline as pipeline_module
 from waxal_agent.mt.fake import FakeTranslator
 from waxal_agent.pipeline import Pipeline, TurnResult
-from waxal_agent.server import create_app
+from waxal_server.app import create_app
 from waxal_agent.stt.fake import FakeListener
 from waxal_agent.tts.base import SpeechUnavailable
 from waxal_agent.tts.fake import FakeSpeaker

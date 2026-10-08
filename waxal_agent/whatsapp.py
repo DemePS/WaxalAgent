@@ -24,7 +24,6 @@ from dataclasses import dataclass, field
 import httpx
 
 from . import audio
-from .language import REPLY_LANGUAGE, translating
 from .pipeline import Pipeline
 
 log = logging.getLogger("waxal.whatsapp")
@@ -218,12 +217,12 @@ class WhatsAppBot:
     def _say(self, to: str, english: str, **fields) -> None:
         """A fixed message, translated like every reply (no Wolof is written by hand here). With nothing translated it is sent as it is: in
         French when that is the language, else in English."""
-        if translating():
+        if self.pipeline.language.translating:
             try:
                 text = self.pipeline.translator.translate(english.format(**fields) if fields else english, "en", "wo")
             except Exception:
                 text = english.format(**fields) if fields else english
         else:
-            text = FRENCH.get(english, english) if REPLY_LANGUAGE == "fr" else english
+            text = FRENCH.get(english, english) if self.pipeline.language.reply_language == "fr" else english
             text = text.format(**fields) if fields else text
         self.client.send_text(to, text)

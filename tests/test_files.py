@@ -8,7 +8,7 @@ from waxal_agent import files as files_module
 from waxal_agent.files import FileRefused, Library, safe_name
 from waxal_agent.mt.fake import FakeTranslator
 from waxal_agent.pipeline import Pipeline
-from waxal_agent.server import create_app
+from waxal_server.app import create_app
 from waxal_agent.stt.fake import FakeListener
 from waxal_agent.tts.fake import FakeSpeaker
 
@@ -36,7 +36,7 @@ def test_empty_big_and_too_many_files_are_refused(tmp_path, monkeypatch):
     library = Library(tmp_path)
     with pytest.raises(FileRefused, match="empty"):
         library.save("a.txt", b"")
-    monkeypatch.setattr(files_module, "MAX_BYTES", 10)
+    library.max_bytes = 10
     with pytest.raises(FileRefused, match="too big"):
         library.save("a.txt", b"x" * 11)
     monkeypatch.setattr(files_module, "MAX_FILES", 1)

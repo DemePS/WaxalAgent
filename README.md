@@ -173,10 +173,8 @@ subdomains, e.g. `renassur.sn`; `renassur.sn=Renassur` also fixes the name shown
 
 ## INSTRUCTIONS.md: general instructions, apart from the documents
 
-Put a file named `INSTRUCTIONS.md` (and, if you like, other `.md` or `.txt` files) in `data/instructions/` (`WAXAL_INSTRUCTIONS_DIR`, or `--instructions`). The agent lists that folder at the start of a
-turn, reads the files with `read_file`, and follows whatever they say: it is the owner's word and wins over the prompt's own rules (including "answer only from the documents"), so it can also say what the agent may tell about itself and the service: what the documents are, how to use them and the tasks it has to do. It is
-the same for every person, and it is kept apart from the library, which holds only the knowledge the agent answers from. The folder is read-only for
-the agent and is the only part of `data/` it can open (the people's folders and conversations are not). No code is involved, so a customer can
+Put a file named `INSTRUCTIONS.md` (and, if you like, other `.md` or `.txt` files) in `data/instructions/` (`WAXAL_INSTRUCTIONS_DIR`, or `--instructions`). The server appends the text of these files to the agent's system prompt at every turn (`INSTRUCTIONS.md` first, then the others by name), so there is no file for the agent to find or skip. It is the owner's word and wins over the prompt's own rules (including "answer only from the documents"), so it can also say what the agent may tell about itself and the service: what the documents are, how to use them and the tasks it has to do. It is
+the same for every person, and it is kept apart from the library, which holds only the knowledge the agent answers from. The agent cannot open the folder (nor the people's folders and conversations). The files are read again at every turn, so an edit applies at the next message, without a restart. No code is involved, so a customer can
 write their own: `docs/INSTRUCTIONS.example.md` is an example (two documents, and a link to a partner). With Docker, `data/` is the mounted volume,
 so edit the file there.
 
