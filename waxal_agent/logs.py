@@ -3,6 +3,14 @@ their lines are lost (they must not import the command line for it)."""
 
 import logging
 
+# CodeAgent's lines about the resumed conversation: they print pieces of the person's earlier messages and replies. Shown at DEBUG only.
+_CONVERSATION_RECAP = ("Resumed conversation:", "Last instruction:", "Last reply:")
+
+
+class _HideConversationRecap(logging.Filter):
+    def filter(self, record: logging.LogRecord) -> bool:
+        return logging.getLogger().isEnabledFor(logging.DEBUG) or not record.getMessage().startswith(_CONVERSATION_RECAP)
+
 
 def quiet_loggers() -> None:
     """Libraries whose log lines only pollute the terminal: httpx logs one line per HTTP request (and httpcore, under it, a dozen at
@@ -16,4 +24,7 @@ def quiet_loggers() -> None:
 def setup_logging(level: str = "INFO") -> None:
     """The log format and level (WAXAL_LOG, through Settings.log_level)."""
     logging.basicConfig(level=level.upper(), format="%(asctime)s %(levelname)s %(message)s", datefmt="%H:%M:%S")
+    for handler in logging.getLogger().handlers:
+        if not any(isinstance(f, _HideConversationRecap) for f in handler.filters):
+            handler.addFilter(_HideConversationRecap())
     quiet_loggers()
