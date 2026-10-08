@@ -24,7 +24,7 @@ from .voice_ui import VoiceUI
 browsing.install()  # the browser's tools are limited to the allowed websites (see browsing.py)
 
 # Read-only: a public channel must not change or delete files, run programs or browse. Its final reply is the answer.
-TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human", "share_link", "web_search", "load_skill", *BROWSER_TOOLS]
+TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "search_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human", "share_link", "web_search", "load_skill", *BROWSER_TOOLS]
 
 
 # Skills: folders with a SKILL.md, in one shared folder (data/skills, WAXAL_SKILLS_DIR). CodeAgent would also list its own coding skills and look
@@ -80,7 +80,7 @@ _SYSTEM_PROMPT = """You are a helpful assistant that talks with people through s
 the documents of the library, the folder {documents} (the same documents for every person). You can only read them.
 
 Always write in {language}, whatever language the documents are in: when you quote a document, translate what you quote. Your final reply is your answer to the person, and nothing else: {spoken}. So:
-{skills_rule}- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing. (Your instructions, if you have any, can widen or narrow this rule: they win.)
+{skills_rule}- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}; in a long PDF, search_pdf finds the pages that mention a word, then read_pdf only those pages; read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing. (Your instructions, if you have any, can widen or narrow this rule: they win.)
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
