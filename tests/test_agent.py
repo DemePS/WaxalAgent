@@ -249,3 +249,22 @@ def test_the_agent_timing_line_counts_the_tool_calls_and_the_first_output(caplog
     caplog.clear()
     ui.log_timing()
     assert "first output after 0." in caplog.text and "2 tool call(s)" in caplog.text
+
+
+def test_the_reply_does_not_wait_for_the_notes_to_be_saved_but_the_next_turn_does(tmp_path, monkeypatch):
+    import threading
+    import time
+    monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
+    monkeypatch.setattr(session, "send", fake_send("ok"))
+    saving, finish, order = threading.Event(), threading.Event(), []
+    monkeypatch.setattr(session, "close", lambda: (saving.set(), finish.wait(5), order.append("saved")))
+    turns = AgentTurns(tmp_path / "users", documents=tmp_path / "library")
+    reply, notes = turns.ask("u", "hello")                      # returns while the notes are still being saved
+    assert "ok" in reply and saving.wait(2) and order == []
+    second = threading.Thread(target=lambda: (turns.ask("u", "again"), order.append("second")))
+    second.start()
+    time.sleep(0.3)
+    assert order == []                                          # the next turn waits for the notes
+    finish.set()
+    second.join(5)
+    assert order[0] == "saved" and "second" in order            # (the second turn saves its own notes too)

@@ -189,6 +189,13 @@ class AgentTurns:
                 + (f"\n\n{INSTRUCTIONS_HEADER}\n\n{instructions}" if instructions else "")
                 + (f"\n\nStyle guide for the Wolof you write (follow it):\n{style}" if style else ""))
 
+    def _save_notes(self) -> None:
+        """Let CodeAgent finish saving the person's notes, then free the process for the next turn."""
+        try:
+            session.close()
+        finally:
+            self._lock.release()
+
     def stop(self, user_id: str | None = None) -> bool:
         """Stop the turn that is running (it ends at the next model call and is rolled back). False when none is running."""
         if not self._running:
@@ -211,7 +218,12 @@ class AgentTurns:
             self.refresh(user_id, personal)
         if personal.is_dir() and any(personal.iterdir()):
             english += f"\n\nThis person also has their own documents in {personal.as_posix()}: read them too."
-        with self._lock:
+        # The turn holds the lock from open_project until CodeAgent has finished saving the person's notes (session.close(): a model call
+        # that can take 15 s), but the reply does not wait for it: the notes are saved in a background thread that releases the lock, so
+        # the next turn of this process starts only when they are saved, and the person gets the answer at once.
+        self._lock.acquire()
+        saving = False
+        try:
             session.open_project(folder, ui=ui, tools=self.tools, system_prompt=self.prompt_for_turn(), resume=True)
             if self.documents:
                 self.documents.mkdir(parents=True, exist_ok=True)
@@ -228,8 +240,12 @@ class AgentTurns:
                 failure = describe(e) or f"{type(e).__name__}: {e}"
             finally:
                 self._running = False
-                session.close()
                 browsing.reset()  # nothing of this person stays in the browser
+            threading.Thread(target=self._save_notes, daemon=True, name="save-notes").start()
+            saving = True
+        finally:
+            if not saving:
+                self._lock.release()
         ui.log_timing()
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:

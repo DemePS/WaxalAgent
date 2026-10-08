@@ -20,7 +20,7 @@ dependencies = [
 browser = ["playwright>=1.40"]
 
 [project.scripts]
-waxal-agent = "waxal_agent.cli:main"
+waxal-agent = "waxal_server.cli:main"
 
 [dependency-groups]
 dev = ["pytest>=8", "moto[s3]>=5"]   # moto: an S3 stand-in for the tests
@@ -33,7 +33,7 @@ build-backend = "hatchling.build"
 allow-direct-references = true  # the git dependency above
 
 [tool.hatch.build.targets.wheel]
-packages = ["waxal_agent"]
+packages = ["waxal_agent", "waxal_server"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

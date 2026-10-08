@@ -5,9 +5,10 @@ import logging
 
 
 def quiet_loggers() -> None:
-    """Libraries whose log lines only pollute the terminal: httpx logs one line per HTTP request, azure.identity its credential
-    probing, pypdf a warning per font and page while it reads a PDF (a long PDF prints thousands of them)."""
+    """Libraries whose log lines only pollute the terminal: httpx logs one line per HTTP request (and httpcore, under it, a dozen at
+    DEBUG), azure.identity its credential probing, pypdf a warning per font and page while it reads a PDF (a long PDF prints thousands of them)."""
     logging.getLogger("httpx").setLevel(logging.WARNING)
+    logging.getLogger("httpcore").setLevel(logging.WARNING)
     logging.getLogger("azure").setLevel(logging.WARNING)
     logging.getLogger("pypdf").setLevel(logging.ERROR)
 
