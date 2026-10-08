@@ -29,7 +29,7 @@ def build_translator(settings: Settings, soynade_client=None) -> Translator:
 
 
 def build_speaker(settings: Settings, soynade_client=None) -> Speaker:
-    """settings.tts picks the voice: elevenlabs (default), soynade, huggingface or oolel-demo."""
+    """settings.tts picks the voice: elevenlabs (default) or soynade."""
     if settings.tts == "elevenlabs":
         from .tts.elevenlabs_api import ElevenLabsSpeaker
         return ElevenLabsSpeaker(language=settings.language)
@@ -37,13 +37,7 @@ def build_speaker(settings: Settings, soynade_client=None) -> Speaker:
         from .soynade_api import SoynadeClient
         from .tts.soynade_api import SoynadeSpeaker
         return SoynadeSpeaker(soynade_client or SoynadeClient())
-    if settings.tts == "huggingface":
-        from .tts.huggingface_api import HuggingFaceSpeaker
-        return HuggingFaceSpeaker()
-    if settings.tts == "oolel-demo":
-        from .tts.gradio_space import GradioSpeaker
-        return GradioSpeaker()
-    raise SystemExit(f"Unknown WAXAL_TTS {settings.tts!r}: use elevenlabs, soynade, huggingface or oolel-demo.")
+    raise SystemExit(f"Unknown WAXAL_TTS {settings.tts!r}: use elevenlabs or soynade.")
 
 
 def build_listener(settings: Settings, soynade_client=None) -> Listener:

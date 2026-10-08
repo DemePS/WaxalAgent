@@ -26,7 +26,7 @@ class Settings:
     # The engines (hosted APIs), by name.
     stt: str = "elevenlabs"     # WAXAL_STT: elevenlabs or soynade
     mt: str = "claude"          # WAXAL_MT: claude or soynade
-    tts: str = "elevenlabs"     # WAXAL_TTS: elevenlabs, soynade, huggingface or oolel-demo
+    tts: str = "elevenlabs"     # WAXAL_TTS: elevenlabs or soynade
     # The turn.
     direct: bool = True         # WAXAL_DIRECT: a listener that can turn Wolof speech straight into English does
     show_wolof: bool = False    # WAXAL_SHOW_WOLOF: also transcribe the Wolof, to show what was heard

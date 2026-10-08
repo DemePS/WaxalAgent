@@ -58,6 +58,14 @@ from a number in `WAXAL_ADMINS` (comma-separated digits); never overwritten (`re
 
 ## ElevenLabs (recognition and voice, the default)
 
+Each stage of the pipeline has its own setting:
+
+| Stage | Setting | Default | Alternative |
+|---|---|---|---|
+| Speech to text | `WAXAL_STT` | `elevenlabs` (`stt/elevenlabs_api.py`) | `soynade` |
+| Text to speech | `WAXAL_TTS` | `elevenlabs` (`tts/elevenlabs_api.py`) | `soynade` |
+| Translation | `WAXAL_MT` | `claude` | `soynade` |
+
 `ELEVENLABS_API_KEY`. `WAXAL_STT=elevenlabs` (the default: Wolof speech to Wolof text, translated to English by Claude) and
 `WAXAL_TTS=elevenlabs` (the default: the Wolof voice, model `eleven_v4`, voice `ELEVENLABS_VOICE_ID`). Try each on its own first:
 `uv run python scripts/check_api.py eleven-speak "Nanga def"` and `eleven-listen recording.wav`. If ElevenLabs rejects a language
