@@ -63,16 +63,14 @@ def test_a_missing_claude_setup_becomes_a_note_not_a_crash(tmp_path, monkeypatch
     assert reply == "" and any("ANTHROPIC_API_KEY" in n for n in notes)
 
 
-def test_a_question_to_the_person_is_spoken_on_its_own(tmp_path, monkeypatch):
+def test_a_question_to_the_person_is_an_ordinary_final_reply(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
 
     def send(text):
-        from coding_agent.tools.interaction import tool_ask_human
-        answer = tool_ask_human("Which invoice do you mean: the March one or the April one?")
-        assert "next message" in answer                       # the agent is told to stop and wait for the next voice note
         state.ui.assistant_start()
-        state.ui.assistant_text("I need one detail first.")
+        state.ui.assistant_text("Which invoice do you mean: the March one or the April one?")
         state.ui.assistant_end()
+        state.ui.response_end("end_turn")
         return True
     monkeypatch.setattr(session, "send", send)
     reply, notes = AgentTurns(tmp_path / "users").ask("u", "what is the total?")
@@ -80,25 +78,17 @@ def test_a_question_to_the_person_is_spoken_on_its_own(tmp_path, monkeypatch):
     assert notes == []                                         # a question is not a failure
 
 
-def test_a_question_replaces_the_rest_of_the_reply():
-    from waxal_agent.agent import spoken_reply
-    assert spoken_reply("Let me check. Which one?", ["Which one?"]) == "Which one?"
-    assert spoken_reply("", ["Which one?"]) == "Which one?" and spoken_reply("Done.", []) == "Done."
+def test_the_agent_has_no_ask_human_tool_and_is_told_to_answer_with_a_question():
+    from waxal_agent.agent import TOOLS as WAXAL_TOOLS, build_system_prompt
+    from waxal_agent.language import Language
+    assert "ask_human" not in WAXAL_TOOLS and "ask_human" not in build_system_prompt(Language())
 
 
 def test_there_is_no_speak_wolof_tool_the_final_reply_is_the_answer():
     from coding_agent.tools import TOOL_HANDLERS
     from waxal_agent.agent import TOOLS as WAXAL_TOOLS, spoken_reply
     assert "speak_wolof" not in WAXAL_TOOLS and "speak_wolof" not in TOOL_HANDLERS
-    assert spoken_reply("My answer.", []) == "My answer."                          # the final reply
-    assert spoken_reply("x", ["Quel fichier ?"]) == "Quel fichier ?"               # a question comes first
-
-
-def test_ask_human_tells_the_agent_to_end_its_turn():
-    from waxal_agent import voice_ui
-    ui = voice_ui.VoiceUI()
-    ui.panel("Ban fichier?", tone="question")
-    assert ui.questions == ["Ban fichier?"] and "finish your turn" in ui.ask_text("Your answer: ")
+    assert spoken_reply("My answer.") == "My answer."                              # the final reply
 
 
 def test_the_agent_is_told_to_answer_only_from_the_library_documents():
@@ -268,3 +258,109 @@ def test_the_reply_does_not_wait_for_the_notes_to_be_saved_but_the_next_turn_doe
     finish.set()
     second.join(5)
     assert order[0] == "saved" and "second" in order            # (the second turn saves its own notes too)
+
+
+def _response(ui, text, stop_reason, *tools):
+    """One model response: its text blocks, the tools it calls, and why it stopped."""
+    texts = text if isinstance(text, list) else [text]
+    for block in texts:
+        ui.assistant_start()
+        ui.assistant_text(block)
+    for name in tools:
+        ui.tool_start(name)
+    ui.assistant_end()
+    ui.response_end(stop_reason)
+
+
+def test_a_response_in_several_text_blocks_keeps_all_of_them():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    _response(ui, ["Selon l'article 28, ", "les actions se prescrivent par deux ans."], "end_turn")
+    assert ui.reply == "Selon l'article 28, les actions se prescrivent par deux ans."
+
+
+def test_only_the_response_that_ends_the_turn_is_the_answer(caplog):
+    import logging
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    with caplog.at_level(logging.INFO, logger="waxal.agent"):
+        _response(ui, "Je vais lire cette zone.", "tool_use", "read_pdf")
+        assert ui.reply == "" and not ui.finished  # a step is not an answer
+        _response(ui, "Prévenez l'assureur sous cinq jours.", "end_turn")
+    assert ui.reply == "Prévenez l'assureur sous cinq jours." and ui.finished
+    assert "agent working (tool_use): Je vais lire cette zone." in caplog.text
+    assert "Prévenez" not in caplog.text  # the answer itself is not logged here: the pipeline logs it once
+
+
+def test_what_the_agent_wrote_before_sharing_a_link_is_part_of_the_answer():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    _response(ui, "Le délai est de deux ans.", "tool_use", "share_link")
+    _response(ui, "Voici le lien.", "end_turn")
+    assert ui.reply == "Le délai est de deux ans. Voici le lien."
+
+
+def test_an_answer_cut_short_is_not_spoken_as_if_it_were_complete():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    _response(ui, "Le délai est de", "max_tokens")
+    assert ui.reply == "" and not ui.finished
+    assert any("cut short (max_tokens)" in e for e in ui.errors)
+
+
+def test_a_comment_after_a_link_is_not_kept_and_a_link_answer_survives_later_steps():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    _response(ui, "Le délai est de deux ans.", "tool_use", "share_link")
+    _response(ui, "", "tool_use", "share_link")
+    _response(ui, "Je vérifie un dernier point.", "tool_use", "read_pdf")  # a comment while it works: not part of the answer
+    _response(ui, "C'est confirmé.", "end_turn")
+    assert ui.reply == "Le délai est de deux ans. C'est confirmé."
+
+
+def test_an_answer_cut_short_after_a_link_keeps_only_what_came_with_the_link():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    _response(ui, "Le délai est de deux ans.", "tool_use", "share_link")
+    _response(ui, "Et pour le reste, il fa", "max_tokens")
+    assert ui.reply == "Le délai est de deux ans." and not ui.finished
+    assert any("cut short (max_tokens)" in e for e in ui.errors)
+
+
+def test_an_interrupted_stream_is_not_spoken_as_if_it_were_complete():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    ui.assistant_start()
+    ui.assistant_text("Le délai est de de")
+    ui.assistant_end()
+    ui.response_end("interrupted")
+    assert ui.reply == "" and not ui.finished
+    assert any("cut short (interrupted)" in e for e in ui.errors)
+
+
+def test_without_stop_reasons_the_last_non_empty_response_is_the_answer_as_before():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()                     # an older CodeAgent only calls assistant_end
+    for text in ("Je cherche.", "Voici la réponse.", ""):
+        ui.assistant_start()
+        ui.assistant_text(text)
+        ui.assistant_end()
+    assert ui.reply == "Voici la réponse."
+
+
+def test_a_turn_with_stop_reasons_that_never_ends_is_flagged_but_an_older_codeagent_is_not():
+    from waxal_agent.voice_ui import VoiceUI
+    modern = VoiceUI()
+    _response(modern, "Je cherche.", "tool_use", "read_pdf")          # the step limit stops it here: no end_turn
+    assert modern.knows_why_responses_stopped and not modern.finished
+    older = VoiceUI()                                                 # assistant_end only: nothing says why a response stopped
+    older.assistant_start(); older.assistant_text("Voici la réponse."); older.assistant_end()
+    assert not older.knows_why_responses_stopped and older.reply == "Voici la réponse."
+
+
+def test_a_response_that_never_reached_assistant_end_is_not_spoken():
+    from waxal_agent.voice_ui import VoiceUI
+    ui = VoiceUI()
+    ui.assistant_start()
+    ui.assistant_text("Le délai est de de")  # the stream stopped here: no assistant_end, no response_end
+    assert ui.reply == "" and not ui.finished

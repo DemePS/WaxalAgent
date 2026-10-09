@@ -14,19 +14,18 @@ class VoiceUI(UI):
     Nothing can be approved by voice: an approval gets "no", and the turn's notes say so. The tool set given to the
     agent should not need approvals in the first place.
 
-    A question the agent asks the person (its ask_human tool) is part of the answer: it is collected in `questions`,
-    spoken like any reply, and the person answers it with their next voice note (the conversation is resumed).
+    A question to the person is just the agent's reply: the turn ends, the question is spoken, and the person answers with their next
+    voice note, which resumes the conversation through its saved history. The agent has no ask_human tool here.
     """
 
     def __init__(self) -> None:
-        self.reply = ""
         self.errors: list[str] = []
         self.refused: list[str] = []
-        self.questions: list[str] = []
         self.links: list[dict] = []  # what the agent shared with share_link: [{"url", "label"}]
         self._chunks: list[str] = []
-        self._kept: list[str] = []      # answers written before a link was shared: they are part of the answer
         self._links_here = False        # this response calls share_link
+        self._pending: tuple[str, bool] | None = None  # (text, shared a link) of the response that just ended, until we know why it stopped
+        self._responses: list[tuple[str, str | None, bool]] = []  # every response of the turn: (text, why it stopped, shared a link)
         self._started = time.monotonic()  # the turn's clock, for the timing line
         self._first_output: float | None = None  # when the agent first thought, wrote or called a tool
         self.tool_calls = 0
@@ -51,23 +50,53 @@ class VoiceUI(UI):
 
     # what the agent says
     def assistant_start(self) -> None:
+        # A response can arrive as several text blocks: the words already collected stay (they are cleared when the response ends).
         self._first()
-        self._chunks = []
-        self._links_here = False
 
     def assistant_text(self, text: str) -> None:
         self._chunks.append(text)
 
     def assistant_end(self) -> None:
-        text = "".join(self._chunks).strip()
-        if text:
-            log.info("   the agent says: %s", text[:300])
-            # The last non-empty response is the answer (earlier ones are 'let me look'), except that what the agent wrote in a response that
-            # shares a link is its answer too: it often writes the answer, calls share_link, then ends with a short "here is the link".
-            if self._links_here:
-                self._kept.append(text)
-            self.reply = " ".join(self._kept if self._links_here else [*self._kept, text])
+        if self._pending:  # the previous response was never given a stop reason (an older CodeAgent): it counts as it always did
+            self._responses.append((self._pending[0], None, self._pending[1]))
+        self._pending = ("".join(self._chunks).strip(), self._links_here)
         self._chunks = []
+        self._links_here = False
+
+    def response_end(self, stop_reason: str | None) -> None:
+        """Why the response stopped says what it was. end_turn: the agent is done and this response is its answer. tool_use: it was a step
+        (a comment while it works). Anything else (max_tokens, refusal, an interrupted stream): the answer was cut short."""
+        text, links = self._pending or ("", False)
+        self._pending = None
+        self._responses.append((text, stop_reason, links))
+        if stop_reason in (None, "end_turn"):
+            return
+        if text:
+            log.info("   agent working (%s): %s", stop_reason, text[:300])
+        if stop_reason not in ("tool_use", "pause_turn"):
+            self.errors.append(f"The agent's answer was cut short ({stop_reason}).")
+
+    @property
+    def knows_why_responses_stopped(self) -> bool:
+        """CodeAgent reports the stop reason of each response (an older one does not): only then can we tell that a turn did not finish."""
+        return any(stop is not None for _, stop, _ in self._responses)
+
+    @property
+    def finished(self) -> bool:
+        """The agent ended its turn (a response stopped with end_turn): `reply` is its answer."""
+        return any(stop == "end_turn" for _, stop, _ in self._responses)
+
+    @property
+    def reply(self) -> str:
+        """What is spoken: the text of the response that ended the turn, after what the agent wrote in responses that shared a link (it often
+        writes the answer, calls share_link, then ends with a short "here is the link"). The comments it writes while it works (responses that
+        stopped for a tool) and anything cut short are not part of it. A response whose stop reason was never reported (an older CodeAgent
+        calls only assistant_end) counts as a final one, as it always did."""
+        records = [*self._responses, *([(self._pending[0], None, self._pending[1])] if self._pending else [])]
+        kept = [text for text, _, links in records if links and text]
+        last = next((r for r in reversed(records) if r[0]), None)  # the last response that wrote anything
+        final = last[0] if last and not last[2] and last[1] in (None, "end_turn") else ""
+        return " ".join(part for part in (*kept, final) if part)
 
     def thinking(self) -> None:
         self._first()
@@ -92,17 +121,10 @@ class VoiceUI(UI):
         log.error("   agent error: %s", text)
         self.errors.append(text)
 
-    # questions to the person: sent as part of the reply, answered by the next voice note
-    def panel(self, title: str, lines=(), tone: str = "change") -> None:
-        if tone == "question" and title.strip():  # ask_human shows its question as a panel, then waits for the answer
-            log.info("   the agent asks the person: %s", title.strip())
-            self.questions.append(title.strip())
-
     def confirm(self, question: str, choices: tuple[str, ...] = ("yes", "no")) -> str:
         self.refused.append(question.strip())
         return "no" if "no" in choices else choices[-1]
 
     def ask_text(self, prompt: str, multiline: bool = False) -> str:
-        # Nobody can answer now: the question is already in `questions` and will be spoken.
-        return ("(The question has been sent to the person by voice; they will answer in their next message. "
-                "Do not wait: finish your turn now, briefly.)")
+        # Nobody can answer during the turn (ask_human is not one of this agent's tools; this is only a safety net).
+        return "(Nobody can answer now. Ask your question in your reply, briefly, and finish your turn.)"

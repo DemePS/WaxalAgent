@@ -24,7 +24,7 @@ from .voice_ui import VoiceUI
 browsing.install()  # the browser's tools are limited to the allowed websites (see browsing.py)
 
 # Read-only: a public channel must not change or delete files, run programs or browse. Its final reply is the answer.
-TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "search_library", "search_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "ask_human", "share_link", "web_search", "load_skill", *BROWSER_TOOLS]
+TOOLS = ["list_directory", "read_file", "grep", "read_pdf", "search_library", "search_pdf", "read_excel", "view_image", "read_word", "read_powerpoint", "share_link", "web_search", "load_skill", *BROWSER_TOOLS]
 
 
 # Skills: folders with a SKILL.md, in one shared folder (data/skills, WAXAL_SKILLS_DIR). CodeAgent would also list its own coding skills and look
@@ -81,14 +81,13 @@ the documents of the library, the folder {documents} (the same documents for eve
 
 Always write in {language}, whatever language the documents are in: when you quote a document, translate what you quote. Your final reply is your answer to the person, and nothing else: {spoken}. So:
 {skills_rule}- Answer only from information you found in the documents of the library: read the relevant files first (list_directory on {documents}, then read_pdf, read_excel, read_word, read_powerpoint, read_file or view_image, with absolute paths), and base every statement on what they say. Never use outside knowledge, never guess, never fill gaps. If the files do not contain the answer, say so plainly and say what is missing. (Your instructions, if you have any, can widen or narrow this rule: they win.)
-- Never read a long PDF whole. Find the pages you need with search_library, which searches all the PDFs of the library at once: give it a few distinctive words (a name, a number, an article, a key term), not a sentence, because it ranks the pages by how many of your words they contain. It gives the document and the page number of every result. Then open only those pages with read_pdf. If nothing is found, try other or fewer words, then read the table of contents (read_pdf with mode "text" on the first pages). The page numbers of a table of contents can differ from the PDF's own page numbers, which search_library gives: check one page and correct the shift. search_pdf looks for an exact word or phrase in a single PDF.
+- Never read a long PDF whole. Find the pages you need with search_library, which searches all the PDFs of the library at once: give it a few distinctive words (a name, a number, an article, a key term), not a sentence, because it ranks the pages by how many of your words they contain. It gives the document and the page number of every result. Then open only those pages with read_pdf. If nothing is found, try other or fewer words, then read the table of contents (read_pdf with mode "text" on the first pages). The page numbers of a table of contents can differ from the PDF's own page numbers, which search_library gives: check one page and correct the shift. search_pdf looks for an exact word or phrase in a single PDF. The results are only pointers: never answer from the snippets alone, and never say you found nothing before you have opened the most promising pages with read_pdf and read them.
 - Answer in short, plain sentences, each one simple and brief, and keep the whole answer as short as possible.
-- Your last message is the answer itself, and it starts with the first word of the answer. Do not open with an account of your search ("I found it", "the passage is on page 38"), a title or label ("Answer:", "Réponse :"), or a repeat of what the person asked for ("in two sentences"); and write nothing in a language other than {language}. Anything you want to say while you work belongs before a tool call, never in your last message.
 - Do not use tables, bullet lists, markdown, code or file paths in the answer. Say numbers and names simply.
 - Spell out what matters once; do not repeat yourself.
 - If you need a file you cannot find, say so and say what you would need.
 - You cannot change files or ask for approvals in this channel. Say clearly when something needs more than reading.
-- If you need to ask the person something, use ask_human with one very brief question (a few words, in {language}), then end your turn: they answer by voice in their next message.
+- If the request is too unclear to answer, your reply is one very brief question (a few words, in {language}): the person answers by voice in their next message, and the conversation goes on from there.
 The person's words reached you through {heard}, so they may contain mistakes: if a \
 request is unclear, ask one very brief question instead of guessing."""
 
@@ -138,10 +137,9 @@ def load_instructions(folder: Path | None) -> str:
     return "\n\n".join(p for p in parts if not p.endswith("---\n"))
 
 
-def spoken_reply(reply: str, questions: list[str]) -> str:
-    """What is spoken to the person, and nothing else: the question the agent asked (ask_human); else its final reply."""
-    asked = [t.strip() for t in questions if t.strip()]
-    return "\n".join(asked) if asked else reply.strip()
+def spoken_reply(reply: str) -> str:
+    """What is spoken to the person, and nothing else: the agent's final reply (a question to the person is a final reply like any other)."""
+    return reply.strip()
 
 
 def concise_notice(language: Language) -> str:
@@ -249,7 +247,9 @@ class AgentTurns:
             if not saving:
                 self._lock.release()
         ui.log_timing()
+        if ui.knows_why_responses_stopped and not ui.finished and not failure and ui.tool_calls:
+            ui.errors.append("The agent stopped before it had finished (step limit or an error).")
         notes = ui.errors + [f"Could not do without approval: {q}" for q in ui.refused]
         if failure:
             notes.append(failure)
-        return spoken_reply(ui.reply, ui.questions), notes, ui.links
+        return spoken_reply(ui.reply), notes, ui.links
