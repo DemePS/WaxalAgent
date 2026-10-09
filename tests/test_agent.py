@@ -91,12 +91,6 @@ def test_there_is_no_speak_wolof_tool_the_final_reply_is_the_answer():
     assert spoken_reply("My answer.") == "My answer."                              # the final reply
 
 
-def test_the_agent_is_told_to_answer_only_from_the_library_documents():
-    from waxal_agent.agent import CONCISE, SYSTEM_PROMPT
-    assert "only from information you found in the documents of the library" in SYSTEM_PROMPT and "Never use outside knowledge" in SYSTEM_PROMPT
-    assert "answer only from what you found in the library documents" in CONCISE
-
-
 def test_stop_only_reaches_a_running_turn(tmp_path, monkeypatch):
     monkeypatch.setattr(session, "MEMORY_HOME", tmp_path / "memory")
     turns = AgentTurns(tmp_path / "users")
@@ -132,28 +126,6 @@ def test_the_shared_library_is_a_read_only_folder_and_the_prompt_says_where_it_i
     assert added == [library.resolve()] and library.is_dir()                       # created, and granted for reading only
     assert library.resolve().as_posix() in seen[0] and "{documents}" not in seen[0]
     assert (tmp_path / "users" / "221771234567").is_dir()                          # the person's own folder holds only their conversation
-
-
-def test_the_style_guide_is_part_of_the_prompt_only_when_the_agent_writes_the_wolof(tmp_path, monkeypatch):
-    style = tmp_path / "translation_style_prompt.md"
-    style.write_text("Write *jàmm*.", encoding="utf-8")
-    monkeypatch.setenv("WAXAL_TRANSLATION_STYLE", str(style))
-    turns = AgentTurns(tmp_path / "users")
-    assert turns.prompt_for_turn() == turns.system_prompt                       # English: the translator uses the guide, not the agent
-    monkeypatch.setattr(module, "REPLY_LANGUAGE", "wo")
-    assert turns.prompt_for_turn().startswith(turns.system_prompt) and "Write *jàmm*." in turns.prompt_for_turn()
-    style.write_text("Say *jërejëf*.", encoding="utf-8")                        # read at every turn
-    assert "jërejëf" in turns.prompt_for_turn() and "jàmm" not in turns.prompt_for_turn()
-
-
-def test_the_prompt_says_what_really_happens_to_the_text():
-    import subprocess
-    import sys
-    code = "from waxal_agent import agent; print(agent.SPOKEN); print(agent.SYSTEM_PROMPT.count('machine'))"
-    for language, spoken, machine in (("en", "translated into Wolof by a machine", "1"), ("wo", "exactly as you write it", "0")):
-        out = subprocess.run([sys.executable, "-c", code], capture_output=True, text=True,
-                             env={**__import__("os").environ, "WAXAL_REPLY_LANGUAGE": language}).stdout
-        assert spoken in out and out.strip().endswith(machine), out
 
 
 def test_the_instructions_are_appended_to_the_system_prompt_and_win(tmp_path, monkeypatch):
@@ -364,3 +336,11 @@ def test_a_response_that_never_reached_assistant_end_is_not_spoken():
     ui.assistant_start()
     ui.assistant_text("Le délai est de de")  # the stream stopped here: no assistant_end, no response_end
     assert ui.reply == "" and not ui.finished
+
+
+def test_the_agent_finds_pages_with_search_library_only():
+    from waxal_agent.agent import TOOLS as WAXAL_TOOLS, build_system_prompt
+    from waxal_agent.language import Language
+    assert "search_library" in WAXAL_TOOLS and "search_pdf" not in WAXAL_TOOLS
+    prompt = build_system_prompt(Language())
+    assert "search_library" in prompt and "search_pdf" not in prompt

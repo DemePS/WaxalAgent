@@ -18,7 +18,7 @@
 ## DeepSeek (when the key is available)
 - Put `DEEPSEEK_API_KEY` in `.env` and run the two-question cache test on `deepseek-flash`; add it to the cost table
   (Claude Sonnet 5 with the new caching: about $0.034 per call after the first, on a 110K-token conversation).
-- Check: answer quality in French, tool use, and whether `search_pdf` + text-mode `read_pdf` are enough without PDF documents.
+- Check: answer quality in French, tool use, and whether `search_library` + text-mode `read_pdf` are enough without PDF documents.
 
 ## Untracked files
 - `docs/claude-code-prompt.md`, `docs/wolof-data-landscape.html`, `eval/`, `out.wav`, `recording.ogx`, `speech.wav`:
