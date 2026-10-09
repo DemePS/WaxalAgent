@@ -439,7 +439,7 @@ wheels = [
 [[package]]
 name = "codeagent"
 version = "0.7.0"
-source = { git = "https://github.com/DemePS/CodeAgent.git?rev=8596cd10010f092246c1d979ac90fb597b83eed8#8596cd10010f092246c1d979ac90fb597b83eed8" }
+source = { git = "https://github.com/DemePS/CodeAgent.git?rev=7002d96c43f99a02d83b85bada59a0c870a58b3b#7002d96c43f99a02d83b85bada59a0c870a58b3b" }
 dependencies = [
     { name = "anthropic" },
     { name = "azure-identity" },
@@ -1944,7 +1944,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.34" },
-    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=8596cd10010f092246c1d979ac90fb597b83eed8" },
+    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=7002d96c43f99a02d83b85bada59a0c870a58b3b" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "fonttools", specifier = ">=4.40" },
     { name = "httpx", specifier = ">=0.27" },
