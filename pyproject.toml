@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # The agent engine, pinned to a commit of main (0.6.0 code; move to a tag once one exists).
-    "codeagent[pdf-image] @ git+https://github.com/DemePS/CodeAgent.git@c8b262e172f3733ccc81e4cdd0ec9d119c96dfca",
+    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@8596cd10010f092246c1d979ac90fb597b83eed8",
     "python-dotenv>=1.0",   # a .env file is read before the engines are chosen
     "fonttools>=4.40",   # pypdf needs it to read the encoding of CFF fonts (else it warns on every page)
     "fastapi>=0.110",

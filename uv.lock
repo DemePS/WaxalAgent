@@ -439,22 +439,19 @@ wheels = [
 [[package]]
 name = "codeagent"
 version = "0.7.0"
-source = { git = "https://github.com/DemePS/CodeAgent.git?rev=c8b262e172f3733ccc81e4cdd0ec9d119c96dfca#c8b262e172f3733ccc81e4cdd0ec9d119c96dfca" }
+source = { git = "https://github.com/DemePS/CodeAgent.git?rev=8596cd10010f092246c1d979ac90fb597b83eed8#8596cd10010f092246c1d979ac90fb597b83eed8" }
 dependencies = [
     { name = "anthropic" },
     { name = "azure-identity" },
     { name = "azure-identity-broker", marker = "sys_platform == 'win32'" },
     { name = "httpx" },
     { name = "openpyxl" },
+    { name = "pillow" },
     { name = "pypdf" },
+    { name = "pypdfium2" },
+    { name = "pytesseract" },
     { name = "python-dotenv" },
     { name = "truststore" },
-]
-
-[package.optional-dependencies]
-pdf-image = [
-    { name = "pillow" },
-    { name = "pypdfium2" },
 ]
 
 [[package]]
@@ -1624,6 +1621,19 @@ wheels = [
 ]
 
 [[package]]
+name = "pytesseract"
+version = "0.3.13"
+source = { registry = "https://pypi.org/simple" }
+dependencies = [
+    { name = "packaging" },
+    { name = "pillow" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/9f/a6/7d679b83c285974a7cb94d739b461fa7e7a9b17a3abfd7bf6cbc5c2394b0/pytesseract-0.3.13.tar.gz", hash = "sha256:4bf5f880c99406f52a3cfc2633e42d9dc67615e69d8a509d74867d3baddb5db9", size = 17689, upload-time = "2024-08-16T02:33:56.762Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/7a/33/8312d7ce74670c9d39a532b2c246a853861120486be9443eebf048043637/pytesseract-0.3.13-py3-none-any.whl", hash = "sha256:7a99c6c2ac598360693d83a416e36e0b33a67638bb9d77fdcac094a3589d4b34", size = 14705, upload-time = "2024-08-16T02:36:10.09Z" },
+]
+
+[[package]]
 name = "pytest"
 version = "9.1.1"
 source = { registry = "https://pypi.org/simple" }
@@ -1911,7 +1921,7 @@ version = "0.2.0"
 source = { editable = "." }
 dependencies = [
     { name = "boto3" },
-    { name = "codeagent", extra = ["pdf-image"] },
+    { name = "codeagent" },
     { name = "fastapi" },
     { name = "fonttools", version = "4.65.0", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version < '3.11'" },
     { name = "fonttools", version = "4.66.1", source = { registry = "https://pypi.org/simple" }, marker = "python_full_version >= '3.11'" },
@@ -1934,7 +1944,7 @@ dev = [
 [package.metadata]
 requires-dist = [
     { name = "boto3", specifier = ">=1.34" },
-    { name = "codeagent", extras = ["pdf-image"], git = "https://github.com/DemePS/CodeAgent.git?rev=c8b262e172f3733ccc81e4cdd0ec9d119c96dfca" },
+    { name = "codeagent", git = "https://github.com/DemePS/CodeAgent.git?rev=8596cd10010f092246c1d979ac90fb597b83eed8" },
     { name = "fastapi", specifier = ">=0.110" },
     { name = "fonttools", specifier = ">=4.40" },
     { name = "httpx", specifier = ">=0.27" },

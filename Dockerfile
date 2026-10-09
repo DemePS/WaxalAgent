@@ -1,4 +1,4 @@
-# A small container for WaxalAgent: the server and ffmpeg. All speech and translation go through Soynade's hosted API.
+# A small container for WaxalAgent: the server, ffmpeg and tesseract (OCR of scanned PDF pages). All speech and translation go through Soynade's hosted API.
 #
 #   docker compose up --build
 #
@@ -7,7 +7,7 @@
 FROM python:3.12-slim
 
 RUN apt-get update \
- && apt-get install -y --no-install-recommends ffmpeg git ca-certificates \
+ && apt-get install -y --no-install-recommends ffmpeg git ca-certificates tesseract-ocr tesseract-ocr-fra tesseract-ocr-ara tesseract-ocr-eng \
  && rm -rf /var/lib/apt/lists/*
 
 COPY certs/ /tmp/certs/
