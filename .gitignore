@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 data/
+# the template's instructions and skill are part of the template
+!cookie-cutter/template/data/
 .env
 dist/
 check_*.wav
