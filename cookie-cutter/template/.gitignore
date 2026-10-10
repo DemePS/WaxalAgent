@@ -1,0 +1,11 @@
+.venv/
+__pycache__/
+*.pyc
+.env
+dist/
+check_*.wav
+# per-person conversations and memory stay out of git; the instructions and skills are committed
+data/users/
+# the documents of the library are yours: not committed
+library/*
+!library/.gitkeep

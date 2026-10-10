@@ -1,0 +1,35 @@
+[project]
+name = "{{app_slug}}"
+version = "0.1.0"
+description = "{{description}}"
+readme = "README.md"
+requires-python = ">=3.10"
+dependencies = [
+    # The library: the core (waxal_agent) and the web layer (waxal_server). It brings codeagent, so the app pins nothing else.
+    # While you work on both, uv reads the folder below (see [tool.uv.sources]); for a release or Docker, pin a git commit:
+    #   "waxal-agent @ git+https://github.com/DemePS/WaxalAgent.git@<commit>"
+    "waxal-agent",
+]
+
+[project.optional-dependencies]
+# The agent browses the allowed websites (WAXAL_LINK_DOMAINS) in a headless browser: after installing, run `playwright install chromium`
+browser = ["waxal-agent[browser]"]
+
+[project.scripts]
+{{app_slug}} = "{{app_slug}}.cli:main"
+
+[dependency-groups]
+dev = ["pytest>=8"]   # the library's own tests live in the WaxalAgent folder
+
+[tool.uv.sources]
+waxal-agent = { path = "../WaxalAgent", editable = true }
+
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[tool.hatch.build.targets.wheel]
+packages = ["{{app_slug}}"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]

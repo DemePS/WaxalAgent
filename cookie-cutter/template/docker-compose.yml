@@ -1,0 +1,32 @@
+# `docker compose up --build`, then open http://localhost:8000/?token=<WAXAL_TOKEN>
+#   Recognition and voice: ElevenLabs (ELEVENLABS_API_KEY); translation: Claude.
+# WhatsApp: add `--profile tunnel` for a public https address (see docs/SANDBOX.md).
+
+services:
+  waxal:
+    build:
+      context: .
+      args:
+        LIBRARY: "${LIBRARY:-library}"
+    env_file:
+      - path: .env
+        required: false
+    environment:
+      WAXAL_TOKEN: "${WAXAL_TOKEN:?set WAXAL_TOKEN in .env (the server listens on all addresses inside the container)}"
+    command: >
+      {{app_slug}} serve --host 0.0.0.0 --port 8000
+      ${WAXAL_EXTRA_ARGS:-}
+    ports:
+      - "127.0.0.1:8000:8000"   # your PC only; the tunnel service is what makes it public
+    volumes:
+      - ./data:/app/data
+    restart: unless-stopped
+
+  # A free, temporary public https address for Meta's webhook (Cloudflare quick tunnel). Its address is printed in the logs:
+  #   docker compose --profile tunnel up   then   docker compose logs tunnel | grep trycloudflare
+  tunnel:
+    profiles: ["tunnel"]
+    image: cloudflare/cloudflared:latest
+    command: tunnel --no-autoupdate --url http://waxal:8000
+    depends_on:
+      - waxal

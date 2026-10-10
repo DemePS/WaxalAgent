@@ -1,0 +1,149 @@
+<!doctype html>
+<html lang="{{language}}">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{{app_title}}</title>
+<style>
+  :root { --bg:#fafaf7; --fg:#1c1c1a; --muted:#6b6b66; --line:#dcdcd4; --card:#fff; --accent:{{brand_color}}; --danger:#b3261e; }
+  @media (prefers-color-scheme: dark) { :root { --bg:#161614; --fg:#ecece6; --muted:#9a9a92; --line:#33332f; --card:#1f1f1c; --accent:#3ec79a; --danger:#f2b8b5; } }
+  * { box-sizing: border-box; }
+  body { margin:0; background:var(--bg); color:var(--fg); font:16px/1.5 system-ui, sans-serif; }
+  main { max-width:640px; margin:0 auto; padding:24px 16px 48px; }
+  h1 { font-size:1.3rem; margin:0 0 4px; } .sub { color:var(--muted); margin:0 0 20px; }
+  #talk { width:100%; padding:22px; font-size:1.1rem; border-radius:14px; border:1px solid var(--line); background:var(--card);
+          color:var(--fg); cursor:pointer; touch-action:none; user-select:none; }
+  #talk.rec { background:var(--danger); color:#fff; border-color:var(--danger); }
+  #talk:disabled { opacity:.6; cursor:default; }
+  form { display:flex; gap:8px; margin:12px 0 20px; }
+  input[type=text] { flex:1; padding:10px 12px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; }
+  button.small { padding:10px 14px; border-radius:10px; border:1px solid var(--line); background:var(--card); color:var(--fg); font:inherit; cursor:pointer; }
+  .turn { background:var(--card); border:1px solid var(--line); border-radius:12px; padding:12px 14px; margin:12px 0; }
+  .label { font-size:.78rem; text-transform:uppercase; letter-spacing:.04em; color:var(--muted); margin-top:8px; }
+  .label:first-child { margin-top:0; } .turn p { margin:2px 0 0; white-space:pre-wrap; }
+  .only { display:block; margin:10px 0 0; color:var(--muted); font-size:.92rem; } .only input { margin-right:6px; }
+  #cancel { margin:0 0 12px; border-color:var(--danger); color:var(--danger); }
+  .note { color:var(--danger); font-size:.9rem; } audio { width:100%; margin-top:10px; } #status { color:var(--muted); min-height:1.4em; }
+</style>
+</head>
+<body>
+<main>
+  <h1>{{app_title}}</h1>
+  <p class="sub">Hold the button and speak Wolof. You see what was heard, what the agent understood in English, and its answer.</p>
+  <button id="talk" type="button">Hold to talk</button>
+  <label class="only"><input type="checkbox" id="only"> Transcribe only: just show what was heard (no translation, no agent)</label>
+  <form id="typed"><input type="text" id="line" placeholder="or type Wolof here" autocomplete="off"><button class="small">Send</button></form>
+  <div id="status" role="status"></div>
+  <button id="cancel" class="small" type="button" hidden>Stop</button>
+  </section>
+  <div id="turns"></div>
+</main>
+<script>
+const token = new URLSearchParams(location.search).get('token') || '';
+const headers = (extra = {}) => ({ ...(token ? { 'x-token': token } : {}), ...extra });
+const talk = document.getElementById('talk'), statusEl = document.getElementById('status'), turns = document.getElementById('turns');
+let recorder = null, chunks = [], stream = null, startedAt = 0, discard = false, holding = false;
+const MIN_MS = 800; // a click is not a message
+
+// Sound: an AudioContext started by the person's own click keeps playing when the tab is in the background (an <audio>
+// element started later by the page is often blocked there). If it cannot play, the tab title says the answer is ready and
+// the audio plays when the tab is shown again.
+let audioCtx = null, pendingAudio = null;
+const baseTitle = document.title;
+function unlockAudio() {
+  try { audioCtx = audioCtx || new (window.AudioContext || window.webkitAudioContext)(); if (audioCtx.state === 'suspended') audioCtx.resume(); } catch { /* falls back to <audio> */ }
+}
+async function playElement(el) {
+  try { await el.play(); }
+  catch { pendingAudio = el; if (document.hidden) document.title = '🔊 Answer ready - ' + baseTitle; }
+}
+document.addEventListener('visibilitychange', () => { if (!document.hidden) { document.title = baseTitle;
+  if (pendingAudio) { pendingAudio.play().catch(() => {}); pendingAudio = null; } } });
+
+let controller = null;
+const cancelBtn = document.getElementById('cancel');
+function working(on) { talk.disabled = on; cancelBtn.hidden = !on; }
+cancelBtn.addEventListener('click', () => { if (controller) controller.abort(); fetch('/api/stop', { method: 'POST', headers: headers() }).catch(() => {});
+  statusEl.textContent = 'Stopped.'; });
+
+// The voice of a streamed turn. Each piece of the answer is its own audio file: the chunks of one piece (audio/mpeg) are gathered until the next
+// piece starts (end()), then played as one clip; whole WAV clips are played as they come. The clips play one after the other. (They are not appended
+// to one MediaSource buffer: several separate MP3 files in one buffer cannot be decoded by every browser, e.g. Firefox on Linux.)
+class Voice {
+  constructor(onReady) { this.onReady = onReady; this.el = null; this.group = []; this.media = null; this.clips = []; this.next = 0; }
+  push(media, b64) {
+    const bytes = Uint8Array.from(atob(b64), c => c.charCodeAt(0));
+    if (!bytes.length) { this.flush(); return; }   // the end of one audio file
+    if (!this.el) { this.el = document.createElement('audio'); this.el.controls = true; this.el.addEventListener('ended', () => this.playNext()); this.onReady(this.el); }
+    if (media === 'audio/wav') { this.flush(); this.add(media, [bytes]); }
+    else { if (this.media && this.media !== media) this.flush(); this.media = media; this.group.push(bytes); }
+  }
+  add(media, parts) {
+    this.clips.push(URL.createObjectURL(new Blob(parts, { type: media })));
+    if (this.next === this.clips.length - 1 && (this.el.ended || !this.el.src)) this.playNext();
+  }
+  flush() { if (this.group.length) { this.add(this.media, this.group); this.group = []; } }  // the piece is complete
+  playNext() { if (this.next < this.clips.length) { this.el.src = this.clips[this.next++]; playElement(this.el); } }
+}
+
+// A turn is streamed (/api/turn/stream, /api/text/stream): JSON lines, each shown as it arrives: what was heard, the agent's answer, each piece of the
+// Wolof answer once translated, and the voice of each piece while the next ones are still being translated.
+async function send(path, body, type) {
+  working(true); statusEl.textContent = 'Working…'; controller = new AbortController();
+  const div = document.createElement('div'); div.className = 'turn';
+  let wolofLine = null, voice = null;
+  const line = (label, text, cls) => { if (!text) return null;
+    const l = document.createElement('div'); l.className = 'label'; l.textContent = label;
+    const p = document.createElement('p'); p.textContent = text; if (cls) p.className = cls; div.append(l, p); return p; };
+  const links = list => { if (!(list || []).length) return; const l = document.createElement('div'); l.className = 'label'; l.textContent = 'Links';
+    const p = document.createElement('p');
+    list.forEach((k, i) => { if (i) p.append(' · '); const a = document.createElement('a'); a.href = k.url; a.target = '_blank'; a.rel = 'noopener noreferrer'; a.textContent = k.label; p.append(a); });
+    div.append(l, p); };
+  const handle = e => {
+    if (e.event === 'heard') { line('Heard (Wolof)', e.wolof); line('Understood (English)', e.english); turns.prepend(div); statusEl.textContent = 'The agent is working…'; }
+    else if (e.event === 'answer') { line('Answer (English)', e.reply_english); links(e.links); statusEl.textContent = 'Translating…'; }
+    else if (e.event === 'text') { if (voice) voice.flush(); if (wolofLine) wolofLine.textContent += ' ' + e.wolof; else wolofLine = line('Answer (Wolof)', e.wolof); }
+    else if (e.event === 'audio') { voice = voice || new Voice(el => { div.append(el); playElement(el); }); voice.push(e.media, e.data); statusEl.textContent = ''; }
+    else if (e.event === 'note') line('Note', e.text, 'note');
+    else if (e.event === 'done') { if (!wolofLine && e.reply_english) line('Answer', e.reply_english);
+      (e.notes || []).filter(n => !n.startsWith('No voice')).forEach(n => line('Note', n, 'note')); if (voice) voice.flush(); statusEl.textContent = ''; }
+    else if (e.event === 'error') { statusEl.textContent = e.message; }
+    else if (!e.event && e.wolof !== undefined) { line('Heard (Wolof)', e.wolof); turns.prepend(div); }  // /api/transcribe: one plain JSON answer
+  };
+  try {
+    const res = await fetch(path, { method: 'POST', signal: controller.signal, headers: headers({ 'content-type': type }), body });
+    if (!res.ok) { const data = await res.json().catch(() => ({})); throw new Error(data.detail || `Error ${res.status}`); }
+    const reader = res.body.getReader(), decoder = new TextDecoder(); let rest = '';
+    for (;;) { const { done, value } = await reader.read(); if (done) break;
+      rest += decoder.decode(value, { stream: true }); const lines = rest.split('\n'); rest = lines.pop();
+      lines.filter(Boolean).forEach(l => handle(JSON.parse(l))); }
+    if (rest.trim()) handle(JSON.parse(rest));
+  } catch (e) { if (e.name !== 'AbortError') statusEl.textContent = e.message; else if (voice) voice.flush(); } finally { working(false); controller = null; }
+}
+
+
+async function start() {
+  if (recorder) return;
+  try { stream = await navigator.mediaDevices.getUserMedia({ audio: true }); }
+  catch { statusEl.textContent = 'The microphone is not available (allow it, and use https or localhost).'; return; }
+  if (!holding) { stream.getTracks().forEach(t => t.stop()); stream = null; return; } // released before the microphone was ready: a click
+  chunks = []; recorder = new MediaRecorder(stream);
+  recorder.ondataavailable = e => chunks.push(e.data);
+  recorder.onstop = () => { stream.getTracks().forEach(t => t.stop()); const blob = new Blob(chunks, { type: recorder.mimeType }); recorder = null;
+    if (discard) { statusEl.textContent = 'Cancelled: nothing was sent.'; return; }
+    if (Date.now() - startedAt < MIN_MS || blob.size < 1000) { statusEl.textContent = 'Too short, nothing was sent: hold the button while you speak.'; return; }
+    send(document.getElementById('only').checked ? '/api/transcribe' : '/api/turn/stream', blob, blob.type || 'application/octet-stream'); };
+  discard = false; startedAt = Date.now();
+  recorder.start(); talk.classList.add('rec'); talk.textContent = 'Listening… release to send, move away to cancel'; statusEl.textContent = '';
+}
+function stop(cancel) { discard = !!cancel; if (recorder && recorder.state === 'recording') recorder.stop(); talk.classList.remove('rec'); talk.textContent = 'Hold to talk'; }
+
+talk.addEventListener('pointerdown', e => { e.preventDefault(); unlockAudio(); holding = true; start(); });
+talk.addEventListener('pointerup', () => { holding = false; stop(false); });
+['pointerleave', 'pointercancel'].forEach(t => talk.addEventListener(t, () => { holding = false; stop(true); }));
+document.getElementById('typed').addEventListener('submit', e => { e.preventDefault();
+  unlockAudio(); const line = document.getElementById('line'); const text = line.value.trim(); if (!text) return; line.value = '';
+  send('/api/text/stream', JSON.stringify({ text }), 'application/json'); });
+</script>
+</body>
+</html>
