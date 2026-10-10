@@ -344,3 +344,13 @@ def test_the_agent_finds_pages_with_search_library_only():
     assert "search_library" in WAXAL_TOOLS and "search_pdf" not in WAXAL_TOOLS
     prompt = build_system_prompt(Language())
     assert "search_library" in prompt and "search_pdf" not in prompt
+
+
+def test_the_prompt_tells_the_agent_the_documents_may_be_in_another_language_and_notes_may_be_stale():
+    from waxal_agent.agent import build_system_prompt
+    from waxal_agent.language import Language
+    prompt = build_system_prompt(Language())
+    assert "not necessarily in the person's language" in prompt            # search in English or Arabic too
+    assert "can be out of date" in prompt and "because one search found nothing" in prompt
+    assert "follows up on something you already said" in prompt            # a short follow-up, the reference given once
+    assert "when you read it in this conversation" in prompt               # no source claimed for what was not read
