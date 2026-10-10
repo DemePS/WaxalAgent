@@ -6,7 +6,7 @@ readme = "README.md"
 requires-python = ">=3.10"
 dependencies = [
     # The agent engine, pinned to a commit of main (0.6.0 code; move to a tag once one exists).
-    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@95e925dd9cb95cce848d58718df2ce1e1d813caf",
+    "codeagent @ git+https://github.com/DemePS/CodeAgent.git@a59c8242486377e01ec827737f9efbbc8bc1dcb0",
     "python-dotenv>=1.0",   # a .env file is read before the engines are chosen
     "fastapi>=0.110",
     "uvicorn>=0.30",
